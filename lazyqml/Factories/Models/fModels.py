@@ -1,4 +1,4 @@
-from lazyqml.Factories.Models import QNNTorch, QNNBag, QSVM
+from lazyqml.Factories.Models import QNNTorch, QNNBag, QSVM, QKNN
 from lazyqml.Global.globalEnums import *
 
 class ModelFactory:
@@ -7,10 +7,12 @@ class ModelFactory:
 
     def getModel(self, model, Nqubits, Embedding, Ansatz, N_class,  Layers=5, Shots=1,
                  Max_samples=1.0, Max_features=1.0, LearningRate=0.01, 
-                 BatchSize=8,  Epoch=50, seed=1234,backend=Backend.lightningQubit,numPredictors=10):
+                 BatchSize=8, Epoch=50, seed=1234, backend=Backend.lightningQubit, numPredictors=10, K=20):
         
         if model == Model.QSVM:
             return QSVM(nqubits=Nqubits, embedding=Embedding, shots=Shots, seed=seed,backend=backend)
+        elif model == Model.QKNN:
+            return QKNN(nqubits=Nqubits, embedding=Embedding, shots=Shots, seed=seed, backend=backend, k=K)
         elif model == Model.QNN:
             return QNNTorch(nqubits=Nqubits, ansatz=Ansatz, 
                         embedding=Embedding, n_class=N_class, 

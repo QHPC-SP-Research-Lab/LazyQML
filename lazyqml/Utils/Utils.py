@@ -153,7 +153,7 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, Fold
     for qubits in qubit_values:
         for classifier in classifier_list:
             temp_combinations = []
-            if classifier == Model.QSVM:
+            if classifier == Model.QSVM or classifier == Model.QKNN:
                 # QSVM doesn't use ansatzs or features but uses qubits
                 temp_combinations = list(product([qubits], [classifier], embedding_list, [None], [None], RepeatID, FoldID))
             elif classifier == Model.QNN:
