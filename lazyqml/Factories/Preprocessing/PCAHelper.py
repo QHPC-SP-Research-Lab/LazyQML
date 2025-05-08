@@ -1,8 +1,8 @@
 # Importing from
-from Interfaces.iPreprocessing import Preprocessing
+from lazyqml.Interfaces.iPreprocessing import Preprocessing
 from sklearn.decomposition import PCA
 
-class Pca(Preprocessing):
+class PCAHelper(Preprocessing):
     def __init__(self, nqubits, ncomponents):
         self.nqubits = nqubits
         self.ncomponents = ncomponents

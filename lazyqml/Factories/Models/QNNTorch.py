@@ -2,12 +2,13 @@ import torch
 import pennylane as qml
 from time import time
 import numpy as np
-from Interfaces.iModel import Model
-from Interfaces.iAnsatz import Ansatz
-from Interfaces.iCircuit import Circuit
-from Factories.Circuits.fCircuits import *
-from Global.globalEnums import Backend
-from Utils.Utils import printer
+from lazyqml.Interfaces.iModel import Model
+from lazyqml.Interfaces.iAnsatz import Ansatz
+from lazyqml.Interfaces.iCircuit import Circuit
+from lazyqml.Factories.Circuits.fCircuits import *
+from lazyqml.Global.globalEnums import Backend
+from lazyqml.Utils import printer, get_simulation_type, get_max_bond_dim
+
 import warnings
 
 class QNNTorch(Model):
@@ -23,7 +24,25 @@ class QNNTorch(Model):
         self.lr = lr
         self.batch_size = batch_size
         self.backend = backend
-        self.deviceQ = qml.device(backend.value, wires=nqubits, seed=seed) if backend != Backend.lightningGPU else qml.device(backend.value, wires=nqubits)
+
+        if get_simulation_type() == "tensor":
+            if backend != Backend.lightningTensor:
+                device_kwargs = {
+                    "max_bond_dim": get_max_bond_dim(),
+                    "cutoff": np.finfo(np.complex128).eps,
+                    "contract": "auto-mps",
+                }
+            else:
+                device_kwargs = {
+                    "max_bond_dim": get_max_bond_dim(),
+                    "cutoff": 1e-10,
+                    "cutoff_mode": "abs",
+                }
+                
+            self.deviceQ = qml.device(backend.value, wires=nqubits, method='mps', **device_kwargs)
+        else:
+            self.deviceQ = qml.device(backend.value, wires=nqubits)
+
         self.device = None
         self.params_per_layer = None
         self.circuit_factory = CircuitFactory(nqubits,nlayers=layers)
@@ -51,7 +70,7 @@ class QNNTorch(Model):
         
 
         # Define the quantum circuit as a PennyLane qnode
-        @qml.qnode(self.deviceQ, interface='torch', diff_method='adjoint')
+        @qml.qnode(self.deviceQ, interface='torch', diff_method='adjoint' if get_simulation_type() == "statevector" else 'best')
         def circuit(x, theta):
             
             embedding.getCircuit()(x, wires=range(self.nqubits))
@@ -143,17 +162,5 @@ class QNNTorch(Model):
             # Return the class with the highest logit value
             return torch.argmax(y_pred, dim=1).cpu().numpy()  # Returns class indices
 
-    def _predict(self, X):
-        
-        # Convert test data to torch tensors
-        X_test = torch.tensor(X, dtype=torch.float32).to(self.device)
-        # Forward pass for prediction
-        y_pred = torch.stack([self.forward(x, self.params) for x in X_test])
-        # Apply softmax to get probabilities
-        y_pred = torch.softmax(y_pred, dim=1)
-        # Return the class with the highest probability
-        return torch.argmax(y_pred, dim=1).cpu().numpy()
-
     def getTrainableParameters(self):
         print(self.params)
-        

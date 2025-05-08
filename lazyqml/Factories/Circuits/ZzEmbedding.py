@@ -1,4 +1,4 @@
-from Interfaces.iCircuit import Circuit
+from lazyqml.Interfaces.iCircuit import Circuit
 import pennylane as qml
 import numpy as np
 from itertools import combinations
@@ -25,7 +25,7 @@ class ZzEmbedding(Circuit):
                 qml.RZ(2.0*x[i],wires=i)
                 
 
-            for pair in list(combinations (range(nload), 2)):
+            for pair in list(combinations(range(nload), 2)):
                 q0=pair[0]
                 q1=pair[1]
                 

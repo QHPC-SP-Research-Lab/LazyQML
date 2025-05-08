@@ -1,7 +1,6 @@
 # Importing from
-from Global.globalEnums import *
-from Factories.Preprocessing.Pca import *
-from Factories.Preprocessing.Sanitizer import *
+from lazyqml.Global.globalEnums import *
+from lazyqml.Factories.Preprocessing import PCAHelper, Sanitizer
 
 class PreprocessingFactory:
     def __init__(self, nqubits) -> None:
@@ -12,10 +11,12 @@ class PreprocessingFactory:
 
     def GetPreprocessing(self, embedding, ansatz):
         if embedding == Embedding.AMP and ansatz == Ansatzs.TREE_TENSOR:
-            return Pca(self.nqubits, 2**(2**(self.nqubits.bit_length()-1)))
+            return PCAHelper(self.nqubits, 2**(2**(self.nqubits.bit_length()-1)))
         elif embedding == Embedding.AMP:
-            return Pca(self.nqubits, 2**self.nqubits)
+            return PCAHelper(self.nqubits, 2**self.nqubits)
+        elif embedding == Embedding.DENSE_ANGLE:
+            return PCAHelper(self.nqubits, 2*self.nqubits)
         elif ansatz == Ansatzs.TREE_TENSOR:
-            return Pca(self.nqubits, 2**(self.nqubits.bit_length()-1))
+            return PCAHelper(self.nqubits, 2**(self.nqubits.bit_length()-1))
         else:
-            return Pca(self.nqubits, self.nqubits)
+            return PCAHelper(self.nqubits, self.nqubits)

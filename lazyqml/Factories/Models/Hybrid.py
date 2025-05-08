@@ -3,12 +3,9 @@ import torch.nn as nn
 import torch.optim as optim
 import pennylane as qml
 from time import time
-
-import sys
-sys.path.append('/home/diego/LazyQML/lazyqml/')
-from Global.globalEnums import *
-from Factories.Circuits.fCircuits import CircuitFactory
-from Utils.Utils import printer
+from lazyqml.Global.globalEnums import *
+from lazyqml.Factories.Circuits.fCircuits import CircuitFactory
+from lazyqml.Utils.Utils import printer
 
 
 # class HybridQuantumClassicalModel(nn.Module):

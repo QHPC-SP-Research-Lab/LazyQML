@@ -4,17 +4,18 @@ import numpy as np
 import torch
 import psutil
 import GPUtil
+from itertools import product
+from sklearn.model_selection import LeaveOneOut, StratifiedKFold, train_test_split
 
 # Importing from
-from sklearn.model_selection import LeaveOneOut, StratifiedKFold, train_test_split
-from Global.globalEnums import *
-from itertools import product
+from lazyqml.Global.globalEnums import *
+import lazyqml.Global._config as cfg
 
 """
 ------------------------------------------------------------------------------------------------------------------
     Verbose printer class
         - This class implements the functionlity to print or not depending on a boolean flag
-        - The message is preceded by "[VERBOSE] {message}" 
+        - The message is preceded by "[VERBOSE] {message}"
         - It is implemented as a Singleton Object
 ------------------------------------------------------------------------------------------------------------------
 """
@@ -46,7 +47,7 @@ class VerbosePrinter:
         if cls._instance is None:
             cls._instance = VerbosePrinter()
         return cls._instance
-    
+
 """
 ------------------------------------------------------------------------------------------------------------------
                                             Miscelaneous Utils
@@ -74,7 +75,10 @@ def calculate_quantum_memory(num_qubits, overhead=2):
     bytes_per_qubit_state = 16
 
     # Number of possible states is 2^n, where n is the number of qubits
-    num_states = 2 ** num_qubits
+    if get_simulation_type() == "statevector":
+        num_states = 2 ** num_qubits
+    else:
+        num_states =  num_qubits * (get_max_bond_dim() ** 2)
 
     # Total memory in bytes
     total_memory_bytes = num_states * bytes_per_qubit_state * overhead
@@ -92,19 +96,32 @@ def calculate_free_memory():
     free_ram_mb = mem.available / (1024 ** 2)  # Convert bytes to MiB
     return free_ram_mb
 
+# def calculate_free_video_memory():
+#     """
+#         Calculates the amount of free Video Memory
+#     """
+#     # Use psutil to get available system memory (in MiB)
+
+#     return GPUtil.getGPUs()[0].memoryFree
+
 def calculate_free_video_memory():
     """
-        Calculates the amount of free Video Memory
+    Calculates the amount of free Video Memory.
     """
-    # Use psutil to get available system memory (in MiB)
-    return GPUtil.getGPUs()[0].memoryFree
-
+    try:
+        gpus = GPUtil.getGPUs()
+        if not gpus:
+            raise ValueError("No GPUs found.")
+        return gpus[0].memoryFree
+    except Exception as e:
+        print(f"Error calculating free video memory: {e}")
+        return 0  # Return None or an appropriate default value
 
 def create_combinations(classifiers, embeddings, ansatzs, features, qubits, FoldID, RepeatID):
     classifier_list = []
     embedding_list = []
     ansatzs_list = []
-    
+
     # Make sure we don't have duplicated items
     classifiers = list(classifiers)
     embeddings = list(embeddings)
@@ -112,25 +129,25 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, Fold
     qubit_values = sorted(list(qubits))
     FoldID = sorted(list(FoldID))
     RepeatID = sorted(list(RepeatID))
-    
+
     if Model.ALL in classifiers:
         classifier_list = Model.list()
         classifier_list.remove(Model.ALL)
     else:
         classifier_list = classifiers
-    
+
     if Embedding.ALL in embeddings:
         embedding_list = Embedding.list()
         embedding_list.remove(Embedding.ALL)
     else:
         embedding_list = embeddings
-    
+
     if Ansatzs.ALL in ansatzs:
         ansatzs_list = Ansatzs.list()
         ansatzs_list.remove(Ansatzs.ALL)
     else:
         ansatzs_list = ansatzs
-    
+
     combinations = []
     # Create all base combinations first
     for qubits in qubit_values:
@@ -145,12 +162,12 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, Fold
             elif classifier == Model.QNN_BAG:
                 # QNN_BAG uses ansatzs, features, and qubits
                 temp_combinations = list(product([qubits], [classifier], embedding_list, ansatzs_list, features, RepeatID, FoldID))
-            
+
             # Add memory calculation for each combination
             for combo in temp_combinations:
                 memory = calculate_quantum_memory(combo[0])  # Calculate memory based on number of qubits
                 combinations.append(combo + (memory,))
-    
+
     return combinations
 
 def fixSeed(seed):
@@ -161,7 +178,7 @@ def fixSeed(seed):
 def generate_cv_indices(X, y, mode="cross-validation", test_size=0.4, n_splits=5, n_repeats=1, random_state=None):
     """
     Generate train and test indices for either cross-validation, holdout split, or leave-one-out.
-    
+
     Parameters:
         X (pd.DataFrame or np.ndarray): The features matrix.
         y (pd.Series or np.ndarray): The target vector.
@@ -170,13 +187,13 @@ def generate_cv_indices(X, y, mode="cross-validation", test_size=0.4, n_splits=5
         n_splits (int): Number of folds in StratifiedKFold (ignored for holdout and LOO).
         n_repeats (int): Number of repeats for cross-validation (ignored for holdout and LOO).
         random_state (int): Random state for reproducibility.
-    
+
     Returns:
         dict: A dictionary of train/test indices.
     """
     cv_indices = {}
-    
-    if mode == "holdout":
+
+    if mode == "hold-out":
         # Single train-test split for holdout
         train_idx, test_idx = train_test_split(
             np.arange(len(X)),
@@ -188,7 +205,7 @@ def generate_cv_indices(X, y, mode="cross-validation", test_size=0.4, n_splits=5
             'train_idx': train_idx,
             'test_idx': test_idx
         }
-    
+
     elif mode == "cross-validation":
         # StratifiedKFold for cross-validation splits
         for repeat in range(n_repeats):
@@ -198,7 +215,7 @@ def generate_cv_indices(X, y, mode="cross-validation", test_size=0.4, n_splits=5
                     'train_idx': train_idx,
                     'test_idx': test_idx
                 }
-    
+
     elif mode == "leave-one-out":
         # LeaveOneOut cross-validation
         loo = LeaveOneOut()
@@ -207,21 +224,21 @@ def generate_cv_indices(X, y, mode="cross-validation", test_size=0.4, n_splits=5
                 'train_idx': train_idx,
                 'test_idx': test_idx
             }
-    
+
     else:
-        raise ValueError("Invalid mode. Choose 'holdout', 'cross-validation', or 'leave-one-out'.")
-    
+        raise ValueError("Invalid mode. Choose 'hold-out', 'cross-validation', or 'leave-one-out'.")
+
     return cv_indices
 
 def get_train_test_split(cv_indices, repeat_id=0, fold_id=0):
     """
     Retrieve the train and test indices for a given repeat and fold ID.
-    
+
     Parameters:
         cv_indices (dict): The cross-validation indices dictionary.
         repeat_id (int): The repeat ID (0 to n_repeats-1 or 0 for holdout/LOO).
         fold_id (int): The fold ID within the specified repeat.
-    
+
     Returns:
         tuple: (train_idx, test_idx) arrays for the specified fold and repeat.
     """
@@ -229,16 +246,14 @@ def get_train_test_split(cv_indices, repeat_id=0, fold_id=0):
     if indices is None:
         print(f"RepeatID {repeat_id}, FoldID{fold_id}")
         raise ValueError("Invalid repeat_id or fold_id specified.")
-    
+
     return indices['train_idx'], indices['test_idx']
 
-
-
-def dataProcessing(X, y, prepFactory, customImputerCat, customImputerNum, 
+def dataProcessing(X, y, prepFactory, customImputerCat, customImputerNum,
                 train_idx, test_idx, ansatz=None, embedding=None):
     """
     Process data for specific train/test indices.
-    
+
     Parameters:
     - X: Input features
     - y: Target variable
@@ -249,19 +264,19 @@ def dataProcessing(X, y, prepFactory, customImputerCat, customImputerNum,
     - test_idx: Test set indices
     - ansatz: Optional preprocessing ansatz
     - embedding: Optional embedding method
-    
+
     Returns:
     Tuple of (X_train_processed, X_test_processed, y_train, y_test)
     """
     # Split the data using provided indices
     X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
     y_train, y_test = y[train_idx], y[test_idx]
-    
+
     # Create sanitizer and preprocess
     sanitizer = prepFactory.GetSanitizer(customImputerCat, customImputerNum)
     X_train = pd.DataFrame(sanitizer.fit_transform(X_train))
     X_test = pd.DataFrame(sanitizer.transform(X_test))
-    
+
     # Apply additional preprocessing if ansatz/embedding provided
     if ansatz is not None or embedding is not None:
         preprocessing = prepFactory.GetPreprocessing(ansatz=ansatz, embedding=embedding)
@@ -270,11 +285,47 @@ def dataProcessing(X, y, prepFactory, customImputerCat, customImputerNum,
     else:
         X_train_processed = np.array(X_train)
         X_test_processed = np.array(X_test)
-    
+
     # Convert target variables to numpy arrays
     y_train = np.array(y_train)
     y_test = np.array(y_test)
-    
+
     return X_train_processed, X_test_processed, y_train, y_test
+
+######
+def set_max_bond_dim(dim: int):
+    """
+    Sets the maximum bond dimension for tensor network simulation.
+
+    Parameters
+    ----------
+    dim : int
+        Maximum bond dimension
+    """
+    cfg._max_bond_dim = dim
+
+def get_max_bond_dim():
+    return cfg._max_bond_dim
+
+def set_simulation_type(sim):
+    """
+    Sets the qubit representation for quantum circuit simulation.
+
+    Parameters
+    ----------
+    sim : str
+        String that represents the type of simulation. 'tensor' for tensor network simulation and 'statevector' for state vector simulation.
+    """
+    try:
+        assert sim == "statevector" or sim == "tensor"
+        cfg._simulation = sim
+
+    except Exception as e:
+        raise ValueError(f"Simulation type must be \"statevector\" or \"tensor\". Got \"{sim}\"")
+    
+
+def get_simulation_type():
+    return cfg._simulation
+######
 
 printer = VerbosePrinter()

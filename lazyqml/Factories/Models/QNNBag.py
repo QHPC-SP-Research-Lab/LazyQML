@@ -2,12 +2,12 @@ import torch
 import pennylane as qml
 from time import time
 import numpy as np
-from Interfaces.iModel import Model
-from Interfaces.iAnsatz import Ansatz
-from Interfaces.iCircuit import Circuit
-from Factories.Circuits.fCircuits import *
-from Global.globalEnums import Backend
-from Utils.Utils import printer
+from lazyqml.Interfaces.iModel import Model
+from lazyqml.Interfaces.iAnsatz import Ansatz
+from lazyqml.Interfaces.iCircuit import Circuit
+from lazyqml.Factories.Circuits.fCircuits import *
+from lazyqml.Global.globalEnums import Backend
+from lazyqml.Utils.Utils import printer
 import warnings
 
 class QNNBag(Model):
@@ -27,7 +27,7 @@ class QNNBag(Model):
         self.max_features = max_features
         self.n_estimators = n_estimators
         self.backend = backend
-        self.deviceQ = qml.device(backend.value, wires=self.nqubits, seed=seed)
+        self.deviceQ = qml.device(backend.value, wires=self.nqubits)
         self.device = None
         self.params_per_layer = None
         self.circuit_factory = CircuitFactory(self.nqubits, nlayers=layers)
@@ -148,3 +148,6 @@ class QNNBag(Model):
             return (torch.sigmoid(y_predictions.detach()).cpu().numpy() > 0.5).astype(int)  # Convert to binary predictions
         else:
             return torch.argmax(y_predictions.detach(), dim=1).cpu().numpy()  # For multi-class predictions
+        
+    def getTrainableParameters(self):
+        return self.n_estimators * int(self.layers * self.ansatz.getParameters())

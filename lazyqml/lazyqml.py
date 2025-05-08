@@ -1,86 +1,70 @@
 import inspect
 import warnings
 import numpy as np
-import pandas as pd
-import sys
-from tabulate import tabulate
-from pydantic import BaseModel, Field, model_validator, field_validator, ValidationError, conset
+from pydantic import BaseModel, Field, field_validator
 from pydantic.config import ConfigDict
-from typing import List, Callable, Optional, Set
+from typing import Callable, Optional, Set
 from typing_extensions import Annotated, Set
-from Factories.Preprocessing.fPreprocessing import PreprocessingFactory
-from Global.globalEnums import *
-from Utils.Utils import *
-from Utils.Validator import *
-from Factories.Dispatchers.Dispatcher import *
-from sklearn.impute import SimpleImputer
-from ucimlrepo import fetch_ucirepo
-from sklearn.preprocessing import LabelEncoder
-from time import time
+from lazyqml.Global.globalEnums import *
+from lazyqml.Utils.Utils import *
+from lazyqml.Utils.Validator import *
+from lazyqml.Factories.Dispatchers import Dispatcher
 
 class QuantumClassifier(BaseModel):
     """
-    This module helps in fitting to all the classification algorithms that are available in Scikit-learn
+    Main class of lazyqml that serves as an inteface to build and train a wide variety of quantum machine learning models with little setup. It stores model configurations and and functions as a starting point for model fitting.
+
     Parameters
     ----------
-    verbose : bool, optional (default=False)
-        Verbose True for showing every training message during the fit.
+    nqubits : set of ints
+        Set of qubits to be used in the circuits of the quantum models
+    randomSate : int, optional (default=1234)
+        This integer is used as a seed for the repeatability of the experiments.
     ignoreWarnings : bool, optional (default=True)
-        When set to True, the warning related to algorigms that are not able to run are ignored.
+        When set to True, the warning related to algorithms that are not able to run are ignored.
+    sequential : bool, optional (default=False)
+        If set to True, executes selected models and circuits in a sequential manner. Otherwise, they are executed in parallel.
+    numPredictors : int, optional (default=10)
+        The number of different predictoras that the Quantum Neural Networks with Bagging (QNN_Bag) will use.
+    numLayers : int, optional (default=5)
+        The number of layers that the QNN models will use.
+    classifiers : set of Model enums, optional (default={Model.ALL})
+        Selects the quantum models to build and train. Possible values are: Model.ALL, Model.QNN, Model.QNN_BAG and Model.QSVM
+    ansatzs : set of Ansatzs enums, optional (default={Ansatzs.ALL})
+        Selects the ansatzs to build the QNN and QNNBag quantum models. Possible values are: Ansatzs.ALL, Ansatzs.HCZRX, Ansatzs.TREE_TENSOR, Ansatzs.TWO_LOCAL, Ansatzs.HARDWARE_EFFICIENT, Ansatzs.ANNULAR.
+    embeddings : list of strings, optional (default={Embedding.ALL})
+        Selects the embeddings for all available quantum models. Possible values are: Embedding.ALL, Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.ZZ, Embedding.AMP, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER.
+    features : set of floats, optional (default={0.3, 0.5, 0.8})
+        Set of floating point numbers between 0 and 1.0 that indicates the percentage of data features to be used for each predictor in the QNNBag quantum model. For each value, a new QNNBag model will be trained.
+    learningRate : int, optional (default=0.01)
+        The parameter that will be used for the optimization process of all the QNN and QNNBag models in the gradient descent.
+    epochs : int, optional (default=100)
+        Number of complete passes that will be done over the dataset while fitting the models.
+    batchSize : int, optional (default=8)
+        Number of datapoints per batch when training QNN and QNNBag models.
+    threshold : int, optional (default=22)
+        This parameter partially determines when to use GPU over CPU. If number of qubits surpases this threshold, GPU execution will be prioritized over CPU, but its not guaranteed. Only used for QNN models.
+    maxSamples : float, optional (default=1.0)
+        A floating point number between 0 and 1.0 that indicates the percentage of the dataset that will be used for each predictor in the QNNBag quantum model.
+    verbose : bool, optional (default=False)
+        If True, shows all training messages during the fitting of the selected models.
     customMetric : function, optional (default=None)
         When function is provided, models are evaluated based on the custom evaluation metric provided.
     customImputerNum : function, optional (default=None)
         When function is provided, models are imputed based on the custom numeric imputer provided.
     customImputerCat : function, optional (default=None)
         When function is provided, models are imputed based on the custom categorical imputer provided.
-    prediction : bool, optional (default=False)
-        When set to True, the predictions of all the models models are returned as a pandas dataframe.
-    classifiers : list of strings, optional (default=["all"])
-        When function is provided, trains the chosen classifier(s) ["all", "qsvm", "qnn", "qnnbag"].
-    embeddings : list of strings, optional (default=["all"])
-        When function is provided, trains the chosen embeddings(s) ["all", "amplitude_embedding", "ZZ_embedding", "rx_embedding", "rz_embedding", "ry_embedding"].
-    ansatzs : list of strings, optional (default=["all"])
-        When function is provided, trains the chosen ansatzs(s) ["all", "HPzRx", "tree_tensor", "two_local", "hardware_efficient"].
-    randomSate : int, optional (default=1234)
-        This integer is used as a seed for the repeatability of the experiments.
-    nqubits : int, optional (default=8)
-        This integer is used for defining the number of qubits of the quantum circuits that the models will use.
-    numLayers : int, optional (default=5)
-        The number of layers that the Quantum Neural Network (QNN) models will use, is set to 5 by default.
-    numPredictors : int, optional (default=10)
-        The number of different predictoras that the Quantum Neural Networks with Bagging (QNN_Bag) will use, is set to 10 by default.
-    learningRate : int, optional (default=0.01)
-        The parameter that will be used for the optimization process of all the Quantum Neural Networks (QNN) in the gradient descent, is set to 0.01 by default.
-    epochs : int, optional (default=100)
-        The number of complete passes that will be done over the dataset during the fitting of the models.
-    runs : int, optional (default=1)
-        The number of training runs that will be done with the Quantum Neural Network (QNN) models.
-    maxSamples : float, optiona (default=1.0)
-        A floating point number between 0 and 1.0 that indicates the percentage of the dataset that will be used for each Quantum Neural Network with Bagging (QNN_Bag).
-
-    Examples
-    --------
-    >>> from lazyqml.supervised import QuantumClassifier
-    >>> from sklearn.datasets import load_breast_cancer
-    >>> from sklearn.model_selection import train_test_split
-    >>> data = load_breast_cancer()
-    >>> X = data.data
-    >>> y= data.target
-    >>> X_train, X_test, y_train, y_test = train_test_split(X, y,test_size=.5,random_state =123)
-    >>> clf = QuantumClassifier(verbose=0,ignore_warnings=True, customMetric=None)
-    >>> models,predictions = clf.fit(X_train, X_test, y_train, y_test)
-    >>> model_dictionary = clf.provide_models(X_train,X_test,y_train,y_test)
-    >>> models
-    | Model       | Embedding           | Ansatz             |   Accuracy |   Balanced Accuracy |   ROC AUC |   F1 Score |   Time taken |
-    |:------------|:--------------------|:-------------------|-----------:|--------------------:|----------:|-----------:|-------------:|
-    | qsvm        | amplitude_embedding | ~                  |   0.807018 |            0.782339 |  0.782339 |   0.802547 |     43.7487  |
-    | qnn         | amplitude_embedding | hardware_efficient |   0.77193  |            0.743218 |  0.743218 |   0.765533 |      7.92101 |
-    | qnn         | ry_embedding        | hardware_efficient |   0.71345  |            0.689677 |  0.689677 |   0.709295 |      8.00107 |
-    .....................................................................................................................................
-    #####################################################################################################################################
-    .....................................................................................................................................
-    | qnn         | ZZ_embedding        | two_local          |   0.461988 |            0.455954 |  0.455954 |   0.467481 |      2.13294 |
+    cores : int, optional (default=-1)
+        Number of cores used for parallel execution. If cores = -1, maximum cores available in CPU will be used.
     """
+
+    # FIXME: Estos parametros no se usan
+    # runs : int, optional (default=1)
+    #    The number of training runs that will be done with the Quantum Neural Network (QNN) models.
+    # backend : Backend enum (default=Backend.lightningQubit)
+    # shots : int, optional (default=1)
+        
+    
     model_config = ConfigDict(strict=True)
 
     # nqubits: Annotated[int, Field(gt=0)] = 8
@@ -107,7 +91,7 @@ class QuantumClassifier(BaseModel):
     customMetric: Optional[Callable] = None
     customImputerNum: Optional[Any] = None
     customImputerCat: Optional[Any] = None
-    cores: Optional[int] = True
+    cores: Optional[int] = -1
 
     @field_validator('nqubits', mode='before')
     def check_nqubits_positive(cls, value):
@@ -202,7 +186,18 @@ class QuantumClassifier(BaseModel):
 
     def fit(self, X, y, test_size=0.4, showTable=True):
         """
-        
+        Main method of the QuantumClassifier class. Divides the input dataset in train and test according to the test_size parameter, creates and builds all the quantum models using the previously introduced parameters and trains them using X as training datapoints and y as target tags. 
+
+        Parameters
+        ----------
+        X : ndarray
+            Complete dataset values to be trained and fitted from.
+        y : ndarray
+            Target tags for each dataset point for supervised learning.
+        test_size : float, optional (default=0.4)
+            Floating point number between 0 and 1.0 that indicates which proportion of the dataset to be used to test the trained models.
+        showTable : bool, optional (default=True)
+            If True, prints the table of results and accuracies in the terminal.
         """
         warnings.filterwarnings("ignore")
         printer.set_verbose(verbose=self.verbose)
@@ -215,12 +210,27 @@ class QuantumClassifier(BaseModel):
 
         # Fix seed
         fixSeed(self.randomstate)
-        d = Dispatcher(sequential=self.sequential,threshold=self.threshold,repeats=1, folds=1)
-        d.dispatch(nqubits=self.nqubits,randomstate=self.randomstate,predictions=self.predictions,numPredictors=self.numPredictors,numLayers=self.numLayers,classifiers=self.classifiers,ansatzs=self.ansatzs,backend=self.backend,embeddings=self.embeddings,features=self.features,learningRate=self.learningRate,epochs=self.epochs,runs=self.runs,maxSamples=self.maxSamples,verbose=self.verbose,customMetric=self.customMetric,customImputerNum=self.customImputerNum,customImputerCat=self.customImputerCat, X=X ,y=y,shots=self.shots,showTable=showTable,batch=self.batchSize,mode="holdout",testsize=test_size)
+        d = Dispatcher(sequential=self.sequential,threshold=self.threshold,repeats=1, folds=1, cores=self.cores)
+        scores = d.dispatch(nqubits=self.nqubits,randomstate=self.randomstate,predictions=self.predictions,numPredictors=self.numPredictors,numLayers=self.numLayers,classifiers=self.classifiers,ansatzs=self.ansatzs,backend=self.backend,embeddings=self.embeddings,features=self.features,learningRate=self.learningRate,epochs=self.epochs,runs=self.runs,maxSamples=self.maxSamples,verbose=self.verbose,customMetric=self.customMetric,customImputerNum=self.customImputerNum,customImputerCat=self.customImputerCat, X=X ,y=y,shots=self.shots,showTable=showTable,batch=self.batchSize,mode="hold-out",testsize=test_size)
+
+        return scores
 
     def repeated_cross_validation(self, X, y, n_splits=10, n_repeats=5, showTable=True):
         """
-        
+        Carries out k-fold cross validation based on n_splits (folds) and n_repeats (repeats). 
+
+        Parameters
+        ----------
+        X : ndarray
+            Complete dataset values to be trained and fitted from.
+        y : ndarray
+            Target tags for each dataset point for supervised learning.
+        n_splits : int, optional (default=10)
+            Number of folds for k-fold cross validation training.
+        n_repeats : int, optional (default=5)
+            Number of repetitions for k-fold cross validation.
+        showTable : bool, optional (default=True)
+            If True, prints the table of results and accuracies in the terminal.
         """
         warnings.filterwarnings("ignore")
         printer.set_verbose(verbose=self.verbose)
@@ -233,12 +243,27 @@ class QuantumClassifier(BaseModel):
 
         # Fix seed
         fixSeed(self.randomstate)
-        d = Dispatcher(sequential=self.sequential,threshold=self.threshold,repeats=n_repeats,folds=n_splits)
-        d.dispatch(nqubits=self.nqubits,randomstate=self.randomstate,predictions=self.predictions,numPredictors=self.numPredictors,numLayers=self.numLayers,classifiers=self.classifiers,ansatzs=self.ansatzs,backend=self.backend,embeddings=self.embeddings,features=self.features,learningRate=self.learningRate,epochs=self.epochs,runs=self.runs,maxSamples=self.maxSamples,verbose=self.verbose,customMetric=self.customMetric,customImputerNum=self.customImputerNum,customImputerCat=self.customImputerCat,X=X ,y=y,shots=self.shots,showTable=showTable,batch=self.batchSize,mode="cross-validation")
+        d = Dispatcher(sequential=self.sequential,threshold=self.threshold,repeats=n_repeats,folds=n_splits, cores=self.cores)
+        scores = d.dispatch(nqubits=self.nqubits,randomstate=self.randomstate,predictions=self.predictions,numPredictors=self.numPredictors,numLayers=self.numLayers,classifiers=self.classifiers,ansatzs=self.ansatzs,backend=self.backend,embeddings=self.embeddings,features=self.features,learningRate=self.learningRate,epochs=self.epochs,runs=self.runs,maxSamples=self.maxSamples,verbose=self.verbose,customMetric=self.customMetric,customImputerNum=self.customImputerNum,customImputerCat=self.customImputerCat,X=X ,y=y,shots=self.shots,showTable=showTable,batch=self.batchSize,mode="cross-validation", cores=self.cores)
 
+        return scores
+    
     def leave_one_out(self, X, y, showTable=True):
         """
-        
+        Similar method to repeated_cross_validation. Carries out leave-one-out cross validation. Equivalent to repeated_cross_validation using n_splits=len(X) and n_repeats=1. 
+
+        Parameters
+        ----------
+        X : ndarray
+            Complete dataset values to be trained and fitted from.
+        y : ndarray
+            Target tags for each dataset point for supervised learning.
+        n_splits : int, optional (default=10)
+            Number of folds for k-fold cross validation training.
+        n_repeats : int, optional (default=5)
+            Number of repetitions for k-fold cross validation.
+        showTable : bool, optional (default=True)
+            If True, prints the table of results and accuracies in the terminal.
         """
         warnings.filterwarnings("ignore")
         printer.set_verbose(verbose=self.verbose)
@@ -248,32 +273,10 @@ class QuantumClassifier(BaseModel):
             y=y
         )
         printer.print("Validation successful, fitting the model...")
-        
-        # Fix seed 
+
+        # Fix seed
         fixSeed(self.randomstate)
-        d = Dispatcher(sequential=self.sequential,threshold=self.threshold,folds=len(X),repeats=1)
-        d.dispatch(nqubits=self.nqubits,randomstate=self.randomstate,predictions=self.predictions,numPredictors=self.numPredictors,numLayers=self.numLayers,classifiers=self.classifiers,ansatzs=self.ansatzs,backend=self.backend,embeddings=self.embeddings,features=self.features,learningRate=self.learningRate,epochs=self.epochs,runs=self.runs,maxSamples=self.maxSamples,verbose=self.verbose,customMetric=self.customMetric,customImputerNum=self.customImputerNum,customImputerCat=self.customImputerCat,X=X ,y=y,shots=self.shots,showTable=showTable,batch=self.batchSize,mode="leave-one-out")
+        d = Dispatcher(sequential=self.sequential,threshold=self.threshold,folds=len(X),repeats=1,cores=self.cores)
+        scores = d.dispatch(nqubits=self.nqubits,randomstate=self.randomstate,predictions=self.predictions,numPredictors=self.numPredictors,numLayers=self.numLayers,classifiers=self.classifiers,ansatzs=self.ansatzs,backend=self.backend,embeddings=self.embeddings,features=self.features,learningRate=self.learningRate,epochs=self.epochs,runs=self.runs,maxSamples=self.maxSamples,verbose=self.verbose,customMetric=self.customMetric,customImputerNum=self.customImputerNum,customImputerCat=self.customImputerCat,X=X ,y=y,shots=self.shots,showTable=showTable,batch=self.batchSize,mode="leave-one-out", cores=self.cores)
 
-
-if __name__ == '__main__':
-    Sequential = False
-    Node = "slave4"
-    qubits = 4
-    cores = 6
-
-    from sklearn.datasets import load_iris
-
-    # Load data
-    data = load_iris()
-    X = data.data
-    y = data.target
-
-    repeats = 2
-    embeddings = {Embedding.ZZ}
-
-    classifier = QuantumClassifier(nqubits={4}, classifiers={Model.QSVM,Model.QNN},embeddings={Embedding.RX,Embedding.RY,Embedding.RZ},ansatzs={Ansatzs.HARDWARE_EFFICIENT},sequential=Sequential,backend=Backend.lightningQubit,cores=cores,threshold=22,epochs=5)
-    
-    start = time()
-    
-    classifier.repeated_cross_validation(X,y,n_splits=2,n_repeats=1)
-    print(f"TOTAL TIME: {time()-start}s\t PARALLEL: {not Sequential}")
+        return scores

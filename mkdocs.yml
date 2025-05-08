@@ -1,8 +1,8 @@
 site_name: lazyqml
 site_description: LazyQML benchmarking utility to test quantum machine learning models.
-site_author: DiegoGV-Uniovi
-site_url: https://DiegoGV-Uniovi.github.io/lazyqml
-repo_url: https://github.com/DiegoGV-Uniovi/lazyqml
+site_author: QHPC Group
+site_url: https://QHPC-SP-Research-Lab.github.io/lazyqml
+repo_url: https://github.com/QHPC-SP-Research-Lab/LazyQML
 
 copyright: "Copyright &copy; 2024 - 2024 Diego García Vega"
 
@@ -40,18 +40,7 @@ plugins:
     - search
     - mkdocstrings
     - git-revision-date
-    - git-revision-date-localized:
-          enable_creation_date: true
-          type: timeago
-    # - pdf-export
-    - mkdocs-jupyter:
-          include_source: True
-          ignore_h1_titles: True
-          execute: True
-          allow_errors: false
-          ignore: ["conf.py"]
-          execute_ignore: ["*ignore.ipynb"]
-          
+
 markdown_extensions:
     - admonition
     - abbr
@@ -74,13 +63,14 @@ markdown_extensions:
 nav:
     - Home: index.md
     - Installation: installation.md
-    - Usage: usage.md
-    - Contributing: contributing.md
-    - FAQ: faq.md
-    - Changelog: changelog.md
-    - Report Issues: https://github.com/DiegoGV-Uniovi/lazyqml/issues
-    - Examples:
-        - examples/intro.ipynb
+    # - Usage: usage.md
+    # - Contributing: contributing.md
+    # - FAQ: faq.md
+    # - Changelog: changelog.md
+    - Report Issues: https://github.com/QHPC-SP-Research-Lab/LazyQML/issues
+    # - Examples:
+        # - examples/intro.ipynb
     - API Reference:
-          - lazyqml module: lazyqml.md
-          - common module: common.md
+        - Introduction: api.md
+        - QuantumClassifier: lazyqml.md
+

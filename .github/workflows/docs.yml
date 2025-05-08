@@ -3,7 +3,6 @@ on:
     push:
         branches:
             - main
-            - master
 jobs:
     deploy:
         runs-on: ubuntu-latest
@@ -11,19 +10,15 @@ jobs:
             - uses: actions/checkout@v4
             - uses: actions/setup-python@v5
               with:
-                  python-version: "3.10"
-
+                  python-version: "3.11"
             - name: Install dependencies
               run: |
                   python -m pip install --upgrade pip
                   pip install --user --no-cache-dir Cython
-                  pip install --user -r requirements.txt -r requirements_dev.txt
-                  pip install .
-            - name: Discover typos with codespell
-              run: |
-                  codespell --skip="*.csv,*.geojson,*.json,*.js,*.html,*cff,./.git" --ignore-words-list="aci,hist"
+                  pip install --user -r requirements.txt
             - name: PKG-TEST
               run: |
                   python -m unittest discover tests/
+            - run: python -m pip install --upgrade pip
+            - run: pip install mkdocs-material mkdocstrings mkdocstrings-python-legacy mkdocs-git-revision-date-plugin mkdocs-jupyter
             - run: mkdocs gh-deploy --force
-
