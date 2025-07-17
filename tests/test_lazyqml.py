@@ -51,17 +51,16 @@ class TestLazyqml(unittest.TestCase):
         # TODO: Desarrollar mas
         lazyqml.get_max_bond_dim()
 
-    def _test_basic_exec(self):
+    def test_basic_exec(self):
         from lazyqml import QuantumClassifier
         from lazyqml.Global import Embedding, Ansatzs, Model
 
         X, y = import_data()
 
-        qubits = 4
-        nqubits = {4}
+        nqubits = {4, 8}
         embeddings = {Embedding.RX, Embedding.DENSE_ANGLE}
         ansatzs = {Ansatzs.TWO_LOCAL}
-        models = {Model.QSVM}
+        models = {Model.QSVM, Model.QNN, Model.QKNN}
         layers = 2
         verbose = True
         sequential = False
@@ -116,7 +115,7 @@ class TestLazyqml(unittest.TestCase):
         
         qc.fit(X, y)
 
-    def test_qknn(self):
+    def _test_qknn(self):
         from lazyqml import QuantumClassifier
         from lazyqml.Global import Embedding, Ansatzs, Model
 
@@ -138,6 +137,69 @@ class TestLazyqml(unittest.TestCase):
         # if cores > 1: qc.repeated_cross_validation(X,y,n_splits=splits,n_repeats=repeats)
         # else: qc.fit(X, y)
         qc.fit(X, y)
+
+# from lazyqml.Factories.Models import GradDescentModel
+# import pennylane as qml
+# class GDCustomModel(GradDescentModel):
+#     # def __init__(self, kwargs):
+#     #     super().__init__(**kwargs)
+
+#     def trainable_circuit(self, x, theta):
+#         qml.AngleEmbedding(x, wires=range(self.nqubits), rotation='Y')
+
+#         param_count = 0
+#         for _ in range(self.layers):
+#             for i in range(self.nqubits):
+#                 qml.RY(theta[param_count], wires = i)
+#                 param_count += 1
+#             for i in range(self.nqubits - 1):
+#                 qml.CNOT(wires = [i, i + 1])
+
+#     def getTrainableParameters(self):
+#         return self.layers*self.nqubits
+
+# class TestCustomModel(unittest.TestCase):
+#     def _test_custom_basic(self):
+#         from lazyqml import QuantumClassifier
+#         from lazyqml.Global.globalEnums import Embedding, Ansatzs, Model, Backend
+#         from lazyqml.Factories.Models.modelBlueprint import GenericModel
+
+#         X, y = import_data()
+
+#         qubits = 4
+#         nqubits = {qubits}
+#         embeddings = {Embedding.RX}
+#         ansatzs = {Ansatzs.TWO_LOCAL}
+#         models = {Model.QNN}
+#         epochs = 10
+#         layers = 5
+#         verbose = True
+#         sequential = False
+#         backend = Backend.lightningQubit
+
+#         # {
+#         #     "name": custom_circuit_1,
+#         #     "type": embedding, ansatz o modelo,
+#         #     "circuit": objeto de la clase Model o Ansatz o Circuit,
+#         #     "circ_params" (opcional): diccionaro de parametros
+#         # },
+        
+#         # num_params, backend, n_class, epochs, shots, lr, batch_size
+
+#         custom = [
+#             {
+#                 "name": "custom_1",
+#                 "type": "model",
+#                 "circuit": GDCustomModel,
+#                 "circ_params": {
+#                     "layers": layers + 1
+#                 }
+#             }
+#         ]
+
+#         qc = QuantumClassifier(nqubits=nqubits, embeddings=embeddings, ansatzs=ansatzs, classifiers=models, numLayers=layers, epochs=epochs, verbose=verbose, sequential=sequential, backend=backend, custom_circuits=custom)
+        
+#         qc.fit(X, y)
 
 if __name__ == '__main__':
     unittest.main()

@@ -2,10 +2,6 @@ from lazyqml.Interfaces.iAnsatz import Ansatz
 import pennylane as qml
 
 class HCzRx(Ansatz):
-    def __init__(self, nqubits, nlayers):
-        self.nqubits = nqubits
-        self.nlayers = nlayers
-
     def getCircuit(self):
         def HCzRx(theta, wires):
             """Implements an ansatz circuit composed of Hadamard, CZ, and RX gates.
@@ -35,5 +31,6 @@ class HCzRx(Ansatz):
 
         return HCzRx
     
-    def getParameters(self):
-        return self.nqubits 
+    @property
+    def n_ansatz_params(self):
+        return self.nqubits

@@ -1,4 +1,4 @@
-from _layout import *
+from lazyqml.GUI._layout import *
 
 import sys
 
@@ -159,7 +159,8 @@ def generate_code(button):
     imports = "\n".join(
         [
             f"from sklearn.datasets import load_{selected_dataset}",
-            "from lazyqml import QuantumClassifier"
+            "from lazyqml import QuantumClassifier",
+            "from lazyqml.Global import *"
         ]
     )
 

@@ -1,4 +1,5 @@
-from _widgets import *
+from lazyqml.GUI._widgets import *
+
 import ipywidgets
 
 # Groups options in boxes

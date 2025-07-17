@@ -12,9 +12,9 @@ LazyQML is packed with tools to streamline quantum classification. Below are the
 
 The **QuantumClassifier** class is the core of LazyQML, offering a variety of methods for training and evaluating quantum models. It provides an elegant and flexible interface for working with quantum circuits, allowing you to explore different types of classifiers, embeddings, and ansatz circuits. The goal? To make quantum classification as intuitive as possible. 
 
-### 2. **Variants of QuantumClassifier**
+### 2. **Simulation variants**
 
-LazyQML provides **two variants** of the **QuantumClassifier**, depending on the qubit representation used underneath. This gives you the freedom to choose the right quantum simulation backend for your specific needs:
+LazyQML provides **two simulation types**, depending on the qubit representation used underneath. This gives you the freedom to choose the right quantum simulation backend for your specific needs:
 
 - **State Vector Simulation**: This variant simulates the full quantum state of your system, perfect for smaller systems or when you want a more intuitive understanding of quantum behavior.
   
@@ -54,27 +54,27 @@ from lazyqml.tn import *
 
 LazyQML offers you three robust methods to train and evaluate your quantum models. These methods are designed to give you complete control over the classification process:
 
-#### ``fit(...)``
+#### ``QuantumClassifier.fit(...)``
 The **fit** method is where the magic happens. It trains your quantum model on your dataset, selecting from different quantum classifiers, embeddings, and ansatz circuits. This method provides a simple interface to quickly train a model, view its results, and get on with your quantum journey.
 
 - **When to use it?** Use ``fit`` when you want to quickly train and evaluate a quantum model with just a few lines of code.
 
-#### ``repeated_cross_validation(...)``
+#### ``QuantumClassifier.repeated_cross_validation(...)``
 This method performs repeated k-fold cross-validation. It divides your dataset into k subsets, trains the model on k-1 subsets, and tests on the remaining fold. This process is repeated multiple times to provide a more accurate estimate of your model's performance.
 
 - **When to use it?** Use ``repeated_cross_validation`` for a more comprehensive evaluation of your model, especially when working with larger datasets.
 
-#### ``leave_one_out(...)``
+#### ``QuantumClassifier.leave_one_out(...)``
 **Leave-One-Out Cross Validation (LOOCV)** is a robust technique where each data point is used as the test set exactly once. This method is fantastic for small datasets, providing a deeper understanding of your model’s performance.
 
 - **When to use it?** Choose ``leave_one_out`` when working with small datasets and you need to evaluate every data point for a thorough assessment.
 
-### 4. **Enums for Quantum Model Selection**
+### 4. **Quantum Model Selection**
 
-LazyQML gives you full control over your quantum model's architecture. With a rich set of enums, you can easily select the correct ansatz circuits, embedding strategies, and classification models.
+LazyQML gives you full control over your quantum model's architecture. With a rich set of predefined enums, you can easily select the correct ansatz circuits, embedding strategies, and classification models.
 
 #### ``Ansatzs``
-Ansatz circuits define the structure of your quantum model. LazyQML provides a selection of ansatz types:
+Ansatz circuits set the core structure of your QNN models, defining the trainable parameters that allows learning from data. LazyQML provides a readily selection of ansatz types:
 
 - `ALL`: All available ansatz circuits.
 - `HCZRX`, `TREE_TENSOR`, `TWO_LOCAL`, `HARDWARE_EFFICIENT`, `ANNULAR`: Popular ansatz circuits that are ideal for quantum machine learning.
@@ -84,7 +84,7 @@ Embeddings control how your classical data is encoded onto quantum states. LazyQ
 
 - `ALL`: All available embedding circuits.
 - `RX`, `RY`, `RZ`: Common qubit rotation embeddings.
-- `ZZ`, `AMP`, `DENSE_ANGLE`, `HIGHER_ORDER`: Embedding strategies based on entanglement or amplitude encoding.
+- `ZZ`, `AMP`, `DENSE_ANGLE`, `HIGHER_ORDER`: Embedding strategies based on entanglement and/or amplitude encoding.
 
 #### ``Model``
 LazyQML supports a variety of quantum models, each suited for different tasks. Choose the model that best fits your data and problem:
@@ -93,10 +93,10 @@ LazyQML supports a variety of quantum models, each suited for different tasks. C
 - `QNN`: Quantum Neural Network.
 - `QNN_BAG`: Quantum Neural Network with Bagging.
 - `QSVM`: Quantum Support Vector Machine.
-<!-- - `QKNN`: Quantum k-Nearest Neighbors. -->
+- `QKNN`: Quantum k-Nearest Neighbors.
 
 
----
+
 ## What's Next?
 
 This overview introduces you to the powerful features of **LazyQML** and the **QuantumClassifier**. Whether you’re just getting started or you’re a quantum computing pro, LazyQML simplifies quantum machine learning.

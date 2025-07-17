@@ -1,6 +1,6 @@
 # Importing from
 from lazyqml.Global.globalEnums import *
-from lazyqml.Factories.Preprocessing import PCAHelper, Sanitizer
+from lazyqml.Preprocessing import PCAHelper, Sanitizer
 
 class PreprocessingFactory:
     def __init__(self, nqubits) -> None:

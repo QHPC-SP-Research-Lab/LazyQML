@@ -117,7 +117,7 @@ def calculate_free_video_memory():
         print(f"Error calculating free video memory: {e}")
         return 0  # Return None or an appropriate default value
 
-def create_combinations(classifiers, embeddings, ansatzs, features, qubits, FoldID, RepeatID):
+def create_combinations(classifiers, embeddings, ansatzs, features, qubits, folds, repeats):
     classifier_list = []
     embedding_list = []
     ansatzs_list = []
@@ -127,8 +127,10 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, Fold
     embeddings = list(embeddings)
     ansatzs = list(ansatzs)
     qubit_values = sorted(list(qubits))
-    FoldID = sorted(list(FoldID))
-    RepeatID = sorted(list(RepeatID))
+    repeat_range = range(repeats)
+    folds_range = range(folds)
+    
+    cv_size = repeats*folds
 
     if Model.ALL in classifiers:
         classifier_list = Model.list()
@@ -148,6 +150,7 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, Fold
     else:
         ansatzs_list = ansatzs
 
+    combo_counter = 0
     combinations = []
     # Create all base combinations first
     for qubits in qubit_values:
@@ -155,18 +158,19 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, Fold
             temp_combinations = []
             if classifier == Model.QSVM or classifier == Model.QKNN:
                 # QSVM doesn't use ansatzs or features but uses qubits
-                temp_combinations = list(product([qubits], [classifier], embedding_list, [None], [None], RepeatID, FoldID))
+                temp_combinations = list(product([qubits], [classifier], embedding_list, [None], [None], repeat_range, folds_range))
             elif classifier == Model.QNN:
                 # QNN uses ansatzs and qubits
-                temp_combinations = list(product([qubits], [classifier], embedding_list, ansatzs_list, [None], RepeatID, FoldID))
+                temp_combinations = list(product([qubits], [classifier], embedding_list, ansatzs_list, [None], repeat_range, folds_range))
             elif classifier == Model.QNN_BAG:
                 # QNN_BAG uses ansatzs, features, and qubits
-                temp_combinations = list(product([qubits], [classifier], embedding_list, ansatzs_list, features, RepeatID, FoldID))
+                temp_combinations = list(product([qubits], [classifier], embedding_list, ansatzs_list, features, repeat_range, folds_range))
 
             # Add memory calculation for each combination
             for combo in temp_combinations:
                 memory = calculate_quantum_memory(combo[0])  # Calculate memory based on number of qubits
-                combinations.append(combo + (memory,))
+                combinations.append((combo_counter // cv_size, *combo, memory))
+                combo_counter += 1
 
     return combinations
 
@@ -291,6 +295,22 @@ def dataProcessing(X, y, prepFactory, customImputerCat, customImputerNum,
     y_test = np.array(y_test)
 
     return X_train_processed, X_test_processed, y_train, y_test
+
+######
+def get_embedding_expressivity(nqubits, embedding):
+    if embedding == Embedding.AMP:
+        return 2**nqubits
+    elif embedding == Embedding.DENSE_ANGLE:
+        return 2*nqubits
+    else:
+        return nqubits
+    
+def find_output_shape(model, sample):
+    sample = torch.Tensor(sample)
+
+    output = torch.flatten(model(sample))
+    return output.shape[0]
+
 
 ######
 def set_max_bond_dim(dim: int):

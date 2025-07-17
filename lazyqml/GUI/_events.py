@@ -1,5 +1,5 @@
-from _widgets import *
-from _generator import generate_code, save2file
+from lazyqml.GUI._widgets import *
+from lazyqml.GUI._generator import generate_code, save2file
 
 # Enable/disable widgets depending on CV/bagging options
 def on_change_cv(change):

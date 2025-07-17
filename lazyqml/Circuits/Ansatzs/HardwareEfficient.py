@@ -2,11 +2,6 @@ from lazyqml.Interfaces.iAnsatz import Ansatz
 import pennylane as qml
 
 class HardwareEfficient(Ansatz):
-    def __init__(self, nqubits,nlayers):
-
-        self.nqubits = nqubits
-        self.nlayers = nlayers
-
     def getCircuit(self):
         def hardware_efficient_ansatz(theta, wires):
             """Implements a hardware-efficient ansatz circuit.
@@ -51,5 +46,6 @@ class HardwareEfficient(Ansatz):
 
         return hardware_efficient_ansatz
     
-    def getParameters(self):
-        return 3 * self.nqubits 
+    @property
+    def n_ansatz_params(self):
+        return 3 * self.nqubits

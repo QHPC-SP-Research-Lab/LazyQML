@@ -6,6 +6,7 @@ from .Utils import generate_cv_indices
 from .Utils import create_combinations
 from .Utils import fixSeed
 from .Utils import get_train_test_split, dataProcessing
+from .Utils import get_embedding_expressivity, find_output_shape
 
 __all__ = [
     'printer', 
@@ -22,5 +23,7 @@ __all__ = [
     'create_combinations',
     'fixSeed',
     'get_train_test_split',
-    'dataProcessing'
+    'dataProcessing',
+    'get_embedding_expressivity',
+    'find_output_shape'
 ]

@@ -1,34 +1,49 @@
 # Importing from
     # Internal Dependencies
-from lazyqml.Utils import *
-from lazyqml.Factories.Models.fModels import ModelFactory
-from lazyqml.Factories.Preprocessing import PreprocessingFactory
+from lazyqml.Factories import ModelFactory, PreprocessingFactory
 from lazyqml.Global.globalEnums import Model, Backend
+from .Tasks import QMLTask
+from lazyqml.Utils import printer, calculate_free_memory, get_simulation_type, calculate_free_video_memory, generate_cv_indices, create_combinations, calculate_quantum_memory, get_train_test_split, dataProcessing
     # External Libraries
 import numpy as np
 import pandas as pd
-import torch
 import psutil
+
 from sklearn.metrics import f1_score, accuracy_score, balanced_accuracy_score
 from multiprocessing import Queue, Process, Pool, Manager
-from statistics import mean
-from collections import defaultdict
+import queue
 from time import time, sleep
 
 class Dispatcher:
-    def __init__(self, sequential=False, threshold=22, time=True, folds=10, repeats=5, cores=-1):
+    def __init__(self, nqubits, randomstate, predictions, shots, numPredictors, numLayers, classifiers, ansatzs, backend, embeddings, numFeatures, learningRate, epochs, runs, batch, numSamples, customMetric, customImputerNum, customImputerCat, sequential=False, threshold=22, time=True, cores=-1):
         self.sequential = sequential
         self.threshold = threshold
         self.timeM = time
-        self.fold = folds
-        self.repeat = repeats
         self.cores = cores
 
-    def execute_model(self, model_factory_params, X_train, y_train, X_test, y_test, predictions, customMetric):
-        model = ModelFactory().getModel(**model_factory_params)
+        self.nqubits = nqubits
+        self.randomstate = randomstate
+        self.shots = shots
+        self.numPredictors = numPredictors
+        self.numLayers = numLayers
+        self.classifiers = classifiers
+        self.ansatzs = ansatzs
+        self.backend = backend
+        self.embeddings = embeddings
+        self.learningRate = learningRate
+        self.epochs = epochs
+        self.batch = batch
+        self.numSamples = numSamples
+        self.numFeatures = numFeatures
+        self.customMetric = customMetric
+        self.customImputerNum = customImputerNum
+        self.customImputerCat = customImputerCat
+        self.predictions = predictions
+
+    def execute_model(self, id, model_params, X_train, y_train, X_test, y_test, customMetric):
+        model = ModelFactory().getModel(**model_params)
         preds = []
         accuracy, b_accuracy, f1, custom = 0, 0, 0, 0
-        custom = None
 
         start = time()
 
@@ -43,23 +58,42 @@ class Dispatcher:
 
         exeT = time() - start
 
-        return model_factory_params['Nqubits'], model_factory_params['model'], model_factory_params['Embedding'], model_factory_params['Ansatz'], model_factory_params['Max_features'], exeT, accuracy, b_accuracy, f1, custom, preds
+        # Construct dataframe with results
+        dict_keys = ['nqubits', 'model', 'embedding', 'ansatz', 'n_features', 'n_samples']
+        model_attr = {key: model_params[key] for key in dict_keys}
 
+        metric_results = {
+            "Time taken": exeT,
+            "Accuracy": accuracy,
+            "Balanced Accuracy": b_accuracy,
+            "F1 Score": f1,
+            "Custom Metric": custom,
+            "Predictions": 0
+        }
 
-    def process_gpu_task(self, queue, results):
-        while not queue.empty():
+        result = pd.DataFrame([{'id': id, **model_attr, 'features': model.n_params, **metric_results}])
+
+        return result
+    
+    def _print_exception(self, e: Exception):
+        printer.print(f"Error in the batch: {str(e)}")
+
+    def process_gpu_task(self, gpu_queue, results):
+        while not gpu_queue.empty():
             try:
-                item = queue.get_nowait()
+                qmltask = gpu_queue.get_nowait()
 
-                partial_result = self.execute_model(*item[1])
+                partial_result = self.execute_model(*qmltask.get_task_params())
 
-                results.append(partial_result)  # Store results if needed
-                printer.print(partial_result)
+                # Store results
+                results.append(partial_result)
+
             except queue.Empty:
                 break
+            except Exception as e:
+                self._print_exception(e)
 
-
-    def process_cpu_task(self,cpu_queue, gpu_queue, results):
+    def process_cpu_task(self, cpu_queue, gpu_queue, results):
         numProcs = psutil.cpu_count(logical=False)
         total_memory = calculate_free_memory()
         available_memory = total_memory
@@ -89,9 +123,9 @@ class Dispatcher:
                 # Recolectar items para procesar mientras haya recursos disponibles
                 while current_cores < max_cores and not cpu_queue.empty():
                     try:
-                        item = cpu_queue.get_nowait()
+                        qmltask = cpu_queue.get_nowait()
                         # printer.print(f"ITEM CPU: {item[0]}")
-                        mem_model = item[0][-1]
+                        mem_model = qmltask.model_memory
 
                         # Verificar si hay recursos suficientes
                         with resource_lock:
@@ -99,14 +133,14 @@ class Dispatcher:
                                 # printer.print(f"Available Resources - Memory: {available_memory}, Cores: {available_cores}")
                                 available_memory -= mem_model
                                 available_cores -= 1
-                                current_batch.append(item)
+                                current_batch.append(qmltask)
                                 current_cores += 1
                             else:
                                 # printer.print(f"Unavailable Resources - Requirements: {mem_model}, Available: {available_memory}")
-                                cpu_queue.put(item)
+                                cpu_queue.put(qmltask)
                                 break
 
-                    except Queue.Empty:
+                    except queue.Empty:
                         break
 
                 # Procesar el batch actual si no está vacío
@@ -114,7 +148,7 @@ class Dispatcher:
                     # printer.print(f"Executing Batch of {len(current_batch)} Jobs")
                     with Pool(processes=len(current_batch)) as pool:
                         # Usamos map de forma síncrona para asegurar que todos los items se procesen
-                        batch_results = pool.starmap(self.execute_model, [params[1] for params in current_batch])
+                        batch_results = pool.starmap(self.execute_model, [qmltask.get_task_params() for qmltask in current_batch])
 
                         # Filtramos los resultados None (errores) y los añadimos a results
                         # valid_results = [r for r in batch_results if r is not None]
@@ -123,8 +157,8 @@ class Dispatcher:
                     # Liberar recursos después del procesamiento
                     with resource_lock:
                         # printer.print("Freeing Up Resources")
-                        for item in current_batch:
-                            mem_model = item[0][-1]
+                        for qmltask in current_batch:
+                            mem_model = qmltask.model_memory
                             available_memory += mem_model
                             available_cores += 1
                             # printer.print(f"Freed - Memory: {available_memory}MB, Cores: {available_cores}")
@@ -133,18 +167,12 @@ class Dispatcher:
                 sleep(0.1)
 
             except Exception as e:
-                printer.print(f"Error in the batch: {str(e)}")
+                self._print_exception(e)
                 import traceback
                 traceback.print_exc()
                 break
 
-    def dispatch(self, nqubits, randomstate, predictions, shots,
-                numPredictors, numLayers, classifiers, ansatzs, backend,
-                embeddings, features, learningRate, epochs, runs, batch,
-                maxSamples, verbose, customMetric, customImputerNum,
-                customImputerCat, X, y,
-                showTable=True, mode="cross-validation",testsize=0.4, cores=-1):
-
+    def dispatch(self, X, y, showTable, folds=10, repeats=5, mode="cross-validation", testsize=0.4):
         """
         ################################################################################
         Preparing Data Structures & Initializing Variables
@@ -154,7 +182,8 @@ class Dispatcher:
         manager = Manager()
         gpu_queue = Queue()
         cpu_queue = Queue()
-        results = manager.list()  # Shared list for results if needed
+        # Shared list for results if needed
+        results = manager.list()
         # Also keep track of items for printing
         cpu_items = []
         gpu_items = []
@@ -166,18 +195,19 @@ class Dispatcher:
 
         """
         ################################################################################
-        Generate CV indices once
+        Generate CV indices
         ################################################################################
         """
         cv_indices = generate_cv_indices(
             X, y,
             mode=mode,
-            n_splits=self.fold,
-            n_repeats=self.repeat,
-            random_state=randomstate,
+            n_splits=folds,
+            n_repeats=repeats,
+            random_state=self.randomstate,
             test_size=testsize
         )
 
+        # print(cv_indices)
 
         """
         ################################################################################
@@ -186,18 +216,19 @@ class Dispatcher:
         """
 
         t_pre = time()
-        combinations = create_combinations(qubits=nqubits,
-                                        classifiers=classifiers,
-                                        embeddings=embeddings,
-                                        features=features,
-                                        ansatzs=ansatzs,
-                                        RepeatID=[i for i in range(self.repeat)],
-                                        FoldID=[i for i in range(self.fold)])
+        combinations = create_combinations(qubits=self.nqubits,
+                                        classifiers=self.classifiers,
+                                        embeddings=self.embeddings,
+                                        features=self.numFeatures,
+                                        ansatzs=self.ansatzs,
+                                        repeats=repeats,
+                                        folds=folds)
         cancelledQubits = set()
         to_remove = []
 
+        # print(combinations)
 
-        for i, combination in enumerate(combinations):
+        for _, combination in enumerate(combinations):
             modelMem = combination[-1]
             if modelMem > RAM and modelMem > VRAM:
                 to_remove.append(combination)
@@ -213,13 +244,13 @@ class Dispatcher:
 
         # Prepare all model executions
         for combination in combinations:
-            qubits, name, embedding, ansatz, feature, repeat, fold, memModel = combination
-            feature = feature if feature is not None else "~"
+            id, qubits, name, embedding, ansatz, n_features, repeat, fold, memModel = combination
+            # feature = feature if feature is not None else "~"
 
             # Get indices for this repeat/fold combination
             train_idx, test_idx = get_train_test_split(cv_indices, repeat, fold)
 
-            numClasses = len(np.unique(y))
+            n_classes = len(np.unique(y))
             adjustedQubits = qubits  # or use adjustQubits if needed
             prepFactory = PreprocessingFactory(adjustedQubits)
 
@@ -228,8 +259,8 @@ class Dispatcher:
                 X,
                 y,
                 prepFactory,
-                customImputerCat,
-                customImputerNum,
+                self.customImputerCat,
+                self.customImputerNum,
                 train_idx,
                 test_idx,
                 ansatz=ansatz,
@@ -237,31 +268,46 @@ class Dispatcher:
             )
 
             model_factory_params = {
-                "Nqubits": adjustedQubits,
+                "nqubits": adjustedQubits,
                 "model": name,
-                "Embedding": embedding,
-                "Ansatz": ansatz,
-                "N_class": numClasses,
-                "backend": backend,
-                "Shots": shots,
-                "seed": randomstate*repeat,
-                "Layers": numLayers,
-                "Max_samples": maxSamples,
-                "Max_features": feature,
-                "LearningRate": learningRate,
-                "BatchSize": batch,
-                "Epoch": epochs,
-                "numPredictors": numPredictors
+                "embedding": embedding,
+                "ansatz": ansatz,
+                "n_class": n_classes,
+                "shots": self.shots,
+                "seed": self.randomstate*repeat,
+                "layers": self.numLayers,
+                "n_samples": self.numSamples,
+                "n_features": n_features,
+                "lr": self.learningRate,
+                "batch_size": self.batch,
+                "epochs": self.epochs,
+                "numPredictors": self.numPredictors
             }
 
+            qmltask = QMLTask(
+                id=id,
+                model_memory=memModel,
+                X_train=X_train_processed,
+                X_test=X_test_processed,
+                y_train=y_train_processed,
+                y_test=y_test_processed,
+                custom_metric=self.customMetric
+            )
+
             # When adding items to queues
-            if name == Model.QNN and qubits >= self.threshold and VRAM > calculate_quantum_memory(qubits):
+            if name == Model.QNN and qubits >= self.threshold and VRAM > memModel:
                 model_factory_params["backend"] = Backend.lightningGPU if not tensor_sim else Backend.lightningTensor
-                gpu_queue.put((combination,(model_factory_params, X_train_processed, y_train_processed, X_test_processed, y_test_processed, predictions, customMetric)))
+
+                qmltask.model_params = model_factory_params
+                gpu_queue.put(qmltask)
+
                 gpu_items.append(combination)
             else:
                 model_factory_params["backend"] = Backend.lightningQubit if not tensor_sim else Backend.defaultTensor
-                cpu_queue.put((combination,(model_factory_params, X_train_processed, y_train_processed, X_test_processed, y_test_processed, predictions, customMetric)))
+
+                qmltask.model_params = model_factory_params
+                cpu_queue.put(qmltask)
+
                 cpu_items.append(combination)
 
         if self.timeM:
@@ -272,7 +318,9 @@ class Dispatcher:
         Creating processes
         ################################################################################
         """
-        sleep(.001)
+        # Wait a bit to add remaining tasks to queue
+        sleep(0.1)
+
         executionTime = time()
         gpu_process = None
         # Start GPU process
@@ -298,43 +346,44 @@ class Dispatcher:
         """
         t_res = time()
 
-        grouped_results = defaultdict(list)
-        for result in list(results):
-            key = result[:5]
-            grouped_results[key].append(result)
+        all_results = pd.concat(list(results)).reset_index(drop=True)
 
-        # For benchmarking/testing reasons
-        # for key, group in grouped_results.items():
-        #     for r in group:
-        #         print(r[5], r[11], r[12])
+        scores = all_results.groupby(['id']).agg({
+            'nqubits': 'first',
+            'model': 'first',
+            'embedding': 'first',
+            'ansatz': 'first',
+            'features': 'first',
+            'n_features': 'first',
+            'n_samples': 'first',
+            'Time taken': 'sum',
+            'Accuracy': 'mean',
+            'Balanced Accuracy': 'mean',
+            'F1 Score': 'mean',
+            'Custom Metric': 'mean'
+        })
 
-        summary = []
-        cols = ["Qubits", "Model", "Embedding", "Ansatz", "Features", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score"]
-        for key, group in grouped_results.items():
-            time_taken = sum([r[5] for r in group])
-            accuracy = mean([r[6] for r in group])
-            balanced_accuracy = mean([r[7] for r in group])
-            f1_score = mean([r[8] for r in group])
-            if customMetric:
-                if mode == "hold-out":
-                    cols = ["Qubits", "Model", "Embedding", "Ansatz", "Features", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score", "Custom Metric", "Predictions"]
-                    summary.append((key[0], key[1], key[2], key[3], key[4], time_taken, accuracy, balanced_accuracy, f1_score, custom_metric, []))
-                else:
-                    cols = ["Qubits", "Model", "Embedding", "Ansatz", "Features", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score", "Custom Metric"]
-                    custom_metric = mean([r[9] for r in group])
-                    summary.append((key[0], key[1], key[2], key[3], key[4], time_taken, accuracy, balanced_accuracy, f1_score, custom_metric))
-            else:
-                if mode == "hold-out":
-                    cols = ["Qubits", "Model", "Embedding", "Ansatz", "Features", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score", "Custom Metric", "Predictions"]
-                    summary.append((key[0], key[1], key[2], key[3], key[4], time_taken, accuracy, balanced_accuracy, f1_score, [], []))
-                else:
-                    cols = ["Qubits", "Model", "Embedding", "Ansatz", "Features", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score"]
-                    summary.append((key[0], key[1], key[2], key[3], key[4], time_taken, accuracy, balanced_accuracy, f1_score))
-        scores = pd.DataFrame(summary, columns=cols)
-        scores = scores.sort_values(by="Balanced Accuracy",ascending=False).reset_index(drop=True)
+        scores.loc[scores['model'] != Model.QNN_BAG, 'n_samples'] = np.nan
+ 
+        # Clean and format dataframe
+        if not self.customMetric:
+            scores = scores.drop(columns=['Custom Metric'])
+
+        scores.columns = ["Qubits", "Model", "Embedding", "Ansatz", "Features", "% Features", "% Samples", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score"]
+
+        # Remove columns if all empty
+        scores = scores.dropna(how='all', axis=1)
+
+        # Fill values if empty
+        scores = scores.fillna("~")
+
+        # Sort scores
+        scores = scores.sort_values(by="Balanced Accuracy", ascending=False).reset_index(drop=True)
+
         if showTable:
             print(scores.to_markdown())
 
         if self.timeM:
             printer.print(f"RESULTS TIME: {time() - t_res}")
+
         return scores

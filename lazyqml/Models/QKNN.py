@@ -2,7 +2,7 @@ import pennylane as qml
 from sklearn.neighbors import KNeighborsClassifier
 
 from lazyqml.Interfaces import Model
-from lazyqml.Factories.Circuits.fCircuits import CircuitFactory
+from lazyqml.Factories import CircuitFactory
 from lazyqml.Utils import printer
 
 
@@ -21,7 +21,7 @@ class QKNN(Model):
         self.k = k
         self.shots = shots
         self.device = qml.device(backend.value, wires=nqubits, seed=seed, shots=self.shots)
-        self.CircuitFactory = CircuitFactory(nqubits,nlayers=0)
+        self.circuit_factory = CircuitFactory(nqubits,nlayers=0)
         self.kernel_circ = self._build_kernel()
         self.qkernel = None
         self.X_train = None
@@ -30,18 +30,20 @@ class QKNN(Model):
         """Build the quantum kernel circuit."""
 
          # Get the embedding circuit from the circuit factory
-        embedding_circuit = self.CircuitFactory.GetEmbeddingCircuit(self.embedding).getCircuit()
+        embedding_circuit = self.circuit_factory.GetEmbeddingCircuit(self.embedding)
+        adj_embedding_circuit = qml.adjoint(embedding_circuit)
 
         @qml.qnode(self.device, diff_method=None)
         def kernel(x1, x2):
             embedding_circuit(x1, wires=range(self.nqubits))
-            qml.adjoint(embedding_circuit)(x2, wires=range(self.nqubits))
+            adj_embedding_circuit(x2, wires=range(self.nqubits))
+            
             return qml.probs(wires = range(self.nqubits))
         
         return kernel
 
     def _compute_distances(self, x1, x2):
-        return 1-self.kernel_circ(x1, x2)[0]
+        return 1 - self.kernel_circ(x1, x2)[0]
 
     def fit(self, X, y):
         """
@@ -53,7 +55,8 @@ class QKNN(Model):
         self.X_train = X
         self.y_train = y
         self.q_distances = self._compute_distances
-        printer.print("\t\tTraining the KNN...")
+        
+        printer.print("\t\tTraining the QKNN...")
         self.KNN = KNeighborsClassifier(n_neighbors=self.k, metric=self.q_distances)
         self.KNN.fit(X, y)
 
@@ -67,5 +70,6 @@ class QKNN(Model):
             printer.print(f"Error during prediction: {str(e)}")
             raise
         
-    def getTrainableParameters(self):
-        return "~"
+    @property
+    def n_params(self):
+        return 0

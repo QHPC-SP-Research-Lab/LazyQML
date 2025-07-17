@@ -28,19 +28,19 @@
   - Description: Set of classifier models.
   - Constraints: Must contain at least one classifier.
   - Default: `{Model.ALL}`
-  - Options: `{Model.QNN, Model.QSVM, Model.QNN_BAG}`
+  - Options: `{Model.QNN, Model.QSVM, Model.QNN_BAG, Model.QKNN}`
 
 - **`ansatzs`**: `Set[Ansatzs]`
   - Description: Set of quantum ansatz configurations.
   - Constraints: Must contain at least one ansatz.
   - Default: `{Ansatzs.ALL}`
-  - Options: `{Ansatzs.RX, Ansatzs.RZ, Ansatzs.RY, Ansatzs.ZZ, Ansatzs.AMP}`
+  - Options: `{Ansatzs.RX, Ansatzs.RY, Ansatzs.RZ, Ansatzs.ZZ, Ansatzs.AMP, Ansatzs.DENSE_ANGLE, Ansatzs.HIGHER_ORDER}`
 
 - **`embeddings`**: `Set[Embedding]`
   - Description: Set of embedding strategies.
   - Constraints: Must contain at least one embedding.
   - Default: `{Embedding.ALL}`
-  - Options: `{Embedding.HCZRX, Embedding.TREE_TENSOR, Embedding.TWO_LOCAL, Embedding.HARDWARE_EFFICENT}`
+  - Options: `{Embedding.HCZRX, Embedding.TREE_TENSOR, Embedding.TWO_LOCAL, Embedding.HARDWARE_EFFICENT, Embedding.ANNULAR}`
 
 - **`features`**: `Set[float]`
   - Description: Set of feature values (must be between 0 and 1).

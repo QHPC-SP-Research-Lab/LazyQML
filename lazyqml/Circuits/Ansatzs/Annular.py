@@ -1,15 +1,10 @@
 from lazyqml.Interfaces.iAnsatz import Ansatz
 import pennylane as qml
-import numpy as np
 
-class TwoLocal(Ansatz):
-    def __init__(self, nqubits, nlayers):
-        self.nqubits = nqubits
-        self.nlayers = nlayers
-
+class Annular(Ansatz):
     def getCircuit(self):
-        def TwoLocal(theta, wires):
-            """Implements a two-local ansatz circuit.
+        def annular(theta, wires):
+            """Implements an annular ansatz circuit.
 
             Args:
                 theta (array[float]): array of parameters for the ansatz circuit
@@ -18,18 +13,28 @@ class TwoLocal(Ansatz):
             Returns:
                 None
             """
+
             N=len(wires)
 
             param_count = 0
 
             for _ in range(self.nlayers):
                 for i in range(N):
-                    qml.RY(theta[param_count], wires = i)
-                    param_count += 1
+                    qml.X(wires=i)
+                    qml.Hadamard(wires=i)
+
                 for i in range(N - 1):
                     qml.CNOT(wires = [i, i + 1])
+                    qml.RY(theta[param_count], wires = i+1)
 
-        return TwoLocal
+                    param_count += 1
 
-    def getParameters(self):
-        return  self.nqubits 
+                qml.CNOT(wires=[N-1, 0])
+                qml.RY(theta[param_count], wires = 0)
+                param_count += 1
+
+        return annular
+    
+    @property
+    def n_ansatz_params(self):
+        return self.nqubits
