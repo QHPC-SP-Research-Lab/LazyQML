@@ -33,7 +33,7 @@ For detailed usage instructions, API reference, and code examples, please refer 
 
 ## Requirements
 
-- Python >= 3.10
+- Python >= 3.12
 
 > ❗❗ 
 > This library is only supported by Linux Systems. It doesn't support Windows nor MacOS. 
