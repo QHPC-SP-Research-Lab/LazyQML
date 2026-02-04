@@ -1,6 +1,7 @@
-from .QNNTorch import QNNTorch
+# from .QNNTorch import QNNTorch
 from .QNNBag import QNNBag
-from .QSVM import QSVM
+from .FastQSVM import QSVM
+from .FastQNN import QNNTorch
 from .QKNN import QKNN
 from .BaseHybridModel import BaseHybridQNNModel, BasicHybridModel
 

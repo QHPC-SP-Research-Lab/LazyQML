@@ -65,9 +65,10 @@ torchaudio
 torchvision
 scipy
 scikit-learn
-PennyLane==0.39
-PennyLane_Lightning==0.39
-PennyLane_Lightning_GPU==0.39
+PennyLane==0.42.3
+PennyLane_Lightning==0.42
+PennyLane_Lightning_GPU==0.42
+pennylane-lightning-tensor==0.42
 quimb
 custatevec_cu12
 ucimlrepo

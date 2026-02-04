@@ -1,9 +1,10 @@
-from lazyqml.Models import QNNTorch, QNNBag, QSVM, QKNN
+from lazyqml.Models import QNNTorch, QNNBag, QSVM, QKNN, BaseHybridQNNModel, BasicHybridModel
 from lazyqml.Global.globalEnums import *
 from lazyqml.Utils import get_simulation_type, get_max_bond_dim
 
 import pennylane as qml
 import numpy as np
+import GPUtil
 
 class ModelFactory:
     def __init__(self) -> None:
@@ -16,38 +17,36 @@ class ModelFactory:
                  seed=1234, backend=Backend.lightningQubit, numPredictors=10, K=20):
         
         if model == Model.QSVM:
-            return QSVM(nqubits=nqubits, embedding=embedding, shots=shots, seed=seed, backend=backend)
+            device = qml.device(backend.value, wires=nqubits)
+            qnode = qml.qnode(device, diff_method=None)
+
+            return QSVM(nqubits=nqubits, embedding=embedding, qnode=qnode)
+
         
         elif model == Model.QKNN:
             return QKNN(nqubits=nqubits, embedding=embedding, shots=shots, seed=seed, backend=backend, k=K)
         
         elif model == Model.QNN:
+            print(f"N = {nqubits} -> backend {backend.value}")
 
-            # Create device
-            if get_simulation_type() == "tensor":
-                if backend != Backend.lightningTensor:
-                    device_kwargs = {
-                        "max_bond_dim": get_max_bond_dim(),
-                        "cutoff": np.finfo(np.complex128).eps,
-                        "contract": "auto-mps",
-                    }
-                else:
-                    device_kwargs = {
-                        "max_bond_dim": get_max_bond_dim(),
-                        "cutoff": 1e-10,
-                        "cutoff_mode": "abs",
-                    }
-                    
-                qdevice = qml.device(backend.value, wires=nqubits, method='mps', **device_kwargs)
-                diff_method = 'best'
-            else:
-                qdevice = qml.device(backend.value, wires=nqubits)
-                diff_method = 'adjoint'
+            params = {
+                'nqubits': nqubits,
+                'ansatz': ansatz,
+                'embedding': embedding,
+                'n_class': n_class,
+                'layers': layers,
+                'epochs': epochs,
+                'shots': shots, 
+                'lr': lr,
+                'batch_size': batch_size,
+                'seed': seed,
+                'torch_device': "cpu",
+                'backend': backend.value,
+                'diff_method': "best"
+            }
 
-            return QNNTorch(nqubits=nqubits, ansatz=ansatz, 
-                        embedding=embedding, n_class=n_class, 
-                        layers=layers, epochs=epochs, shots=shots, 
-                        lr=lr, batch_size=batch_size, seed=seed, device=qdevice, backend=backend, diff_method=diff_method)
+            # print(params)
+            return QNNTorch(**params)
         
         elif model == Model.QNN_BAG:
             return QNNBag(nqubits=nqubits, ansatz=ansatz, embedding=embedding, 

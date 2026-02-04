@@ -7,6 +7,7 @@ from .Utils import create_combinations
 from .Utils import fixSeed
 from .Utils import get_train_test_split, dataProcessing
 from .Utils import get_embedding_expressivity, find_output_shape
+from .Utils import _numpy_math_api
 
 __all__ = [
     'printer', 
@@ -25,5 +26,6 @@ __all__ = [
     'get_train_test_split',
     'dataProcessing',
     'get_embedding_expressivity',
-    'find_output_shape'
+    'find_output_shape',
+    "_numpy_math_api"
 ]

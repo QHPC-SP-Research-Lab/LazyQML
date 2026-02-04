@@ -6,6 +6,7 @@ import psutil
 import GPUtil
 from itertools import product
 from sklearn.model_selection import LeaveOneOut, StratifiedKFold, train_test_split
+from threadpoolctl           import threadpool_limits, threadpool_info
 
 # Importing from
 from lazyqml.Global.globalEnums import *
@@ -96,14 +97,6 @@ def calculate_free_memory():
     free_ram_mb = mem.available / (1024 ** 2)  # Convert bytes to MiB
     return free_ram_mb
 
-# def calculate_free_video_memory():
-#     """
-#         Calculates the amount of free Video Memory
-#     """
-#     # Use psutil to get available system memory (in MiB)
-
-#     return GPUtil.getGPUs()[0].memoryFree
-
 def calculate_free_video_memory():
     """
     Calculates the amount of free Video Memory.
@@ -177,7 +170,6 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, fold
 def fixSeed(seed):
     np.random.seed(seed=seed)
     torch.manual_seed(seed)
-
 
 def generate_cv_indices(X, y, mode="cross-validation", test_size=0.4, n_splits=5, n_repeats=1, random_state=None):
     """
@@ -310,6 +302,16 @@ def find_output_shape(model, sample):
 
     output = torch.flatten(model(sample))
     return output.shape[0]
+
+
+######
+def _numpy_math_api():
+    runtime_cfg = threadpool_info()
+    for cfg in runtime_cfg:
+        filepath = cfg.get("filepath", "")
+        if "numpy" in filepath:
+            return cfg.get("user_api", None)
+    return None
 
 
 ######
