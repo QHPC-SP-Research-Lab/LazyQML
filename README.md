@@ -84,7 +84,7 @@ classifier.fit(X=X, y=y, test_size=0.4)
 
 ## Citing
 If you used LazyQML in your work, please cite:
-- García-Vega, D., Plou Llorente, F., Leal Castaño, A., Combarro, E.F., Ranilla, J.: Lazyqml: A python library to benchmark quantum machine learning models. In: 30th European Conference on Parallel and Distributed Processing (2024)
+- García-Vega, D., Plou-Llorente, F., Leal-Castaño, A., Combarro, E.F., Ranilla, J.: pLazyQML: a parallel package for efficient execution of QML models on classical computers. J Supercomput 81, 1254 (2025). https://doi.org/10.1007/s11227-025-07714-9
 
 ## License
 - Free software: MIT License
