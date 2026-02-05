@@ -67,7 +67,7 @@
 - **`threshold`**: `int`
   - Description: Decision threshold for parallelization, if the model is bigger than this threshold it will use GPU.
   - Constraints: Must be greater than 0.
-  - Default: `22`
+  - Default: `16`
 
 - **`maxSamples`**: `float`
   - Description: Maximum proportion of samples to be used from the dataset characteristics.

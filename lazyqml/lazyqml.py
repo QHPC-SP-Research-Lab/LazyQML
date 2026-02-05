@@ -42,7 +42,7 @@ class QuantumClassifier(BaseModel):
         Number of complete passes that will be done over the dataset while fitting the models.
     batchSize : int, optional (default=8)
         Number of datapoints per batch when training QNN and QNNBag models.
-    threshold : int, optional (default=22)
+    threshold : int, optional (default=16)
         This parameter partially determines when to use GPU over CPU. If number of qubits surpases this threshold, GPU execution will be prioritized over CPU, but its not guaranteed. Only used for QNN models.
     maxSamples : float, optional (default=1.0)
         A floating point number between 0 and 1.0 that indicates the percentage of the dataset that will be used for each predictor in the QNNBag quantum model.
@@ -84,7 +84,7 @@ class QuantumClassifier(BaseModel):
     shots: Annotated[int, Field(gt=0)] = 1
     runs: Annotated[int, Field(gt=0)] = 1
     batchSize: Annotated[int, Field(gt=0)] = 8
-    threshold: Annotated[int, Field(gt=0)] = 14
+    threshold: Annotated[int, Field(gt=0)] = 16
     numSamples: Annotated[float, Field(gt=0, le=1)] = 1.0
     numFeatures: Annotated[Set[float], Field(min_items=1)] = {0.3, 0.5, 0.8}
     verbose: bool = False

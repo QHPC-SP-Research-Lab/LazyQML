@@ -85,7 +85,7 @@ class TestLazyqml(unittest.TestCase):
         # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.25, random_state=4241)
         
         # Initialize QuantumClassifier
-        classifier = QuantumClassifier(nqubits={4, 8, 16}, embeddings={Embedding.RX, Embedding.RY, Embedding.DENSE_ANGLE, Embedding.ZZ}, ansatzs={Ansatzs.TWO_LOCAL, Ansatzs.HARDWARE_EFFICIENT, Ansatzs.ANNULAR}, classifiers={Model.QNN}, verbose=True, sequential=False, threshold=20, epochs=5)
+        classifier = QuantumClassifier(nqubits={4, 8, 16}, embeddings={Embedding.RX, Embedding.RY, Embedding.DENSE_ANGLE, Embedding.ZZ}, ansatzs={Ansatzs.TWO_LOCAL, Ansatzs.HARDWARE_EFFICIENT, Ansatzs.ANNULAR}, classifiers={Model.QNN}, verbose=True, sequential=False, threshold=16, epochs=5)
     
         # Fit and predict
         classifier.fit(X, y, .25)

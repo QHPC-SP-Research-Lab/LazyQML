@@ -38,7 +38,7 @@ class Dispatcher:
                 customImputerNum,
                 customImputerCat,
                 sequential=False,
-                threshold=14,
+                threshold=16,
                 time=True,
                 cores=-1
                 ):

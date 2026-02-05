@@ -80,7 +80,7 @@ class TestFastQNN(unittest.TestCase):
         # No importan
         # splits = 8
         # repeats = 2
-        # threshold = 20
+        # threshold = 16
         batch_size = 8
         # cores = 1
 
