@@ -74,13 +74,12 @@ classifier = QuantumClassifier(nqubits={4}, classifiers={Model.QNN, Model.QSVM},
 classifier.fit(X=X, y=y, test_size=0.4)
 ```
 
-## Quantum and High Performance Computing (QHPC) - University of Oviedo    
+## Quantum and High Performance Computing (QHPC) at University of Oviedo - https://qhpc.uniovi.es
 - José Ranilla Pastor - ranilla@uniovi.es
 - Elías Fernández Combarro - efernandezca@uniovi.es
 - Diego García Vega - diegogarciavega@gmail.com
 - Fernando Álvaro Plou Llorente - ploufernando@uniovi.es
 - Alejandro Leal Castaño - lealcalejandro@uniovi.es
-- Group - https://qhpc.uniovi.es
 
 ## Citing
 If you used LazyQML in your work, please cite:
