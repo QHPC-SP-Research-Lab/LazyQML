@@ -34,13 +34,13 @@
   - Description: Set of quantum ansatz configurations.
   - Constraints: Must contain at least one ansatz.
   - Default: `{Ansatzs.ALL}`
-  - Options: `{Ansatzs.RX, Ansatzs.RY, Ansatzs.RZ, Ansatzs.ZZ, Ansatzs.AMP, Ansatzs.DENSE_ANGLE, Ansatzs.HIGHER_ORDER}`
+  - Options: `{Embedding.HCZRX, Embedding.TREE_TENSOR, Embedding.TWO_LOCAL, Embedding.HARDWARE_EFFICENT, Embedding.ANNULAR}`
 
 - **`embeddings`**: `Set[Embedding]`
   - Description: Set of embedding strategies.
   - Constraints: Must contain at least one embedding.
   - Default: `{Embedding.ALL}`
-  - Options: `{Embedding.HCZRX, Embedding.TREE_TENSOR, Embedding.TWO_LOCAL, Embedding.HARDWARE_EFFICENT, Embedding.ANNULAR}`
+  - Options: `{Ansatzs.RX, Ansatzs.RY, Ansatzs.RZ, Ansatzs.ZZ, Ansatzs.AMP, Ansatzs.DENSE_ANGLE, Ansatzs.HIGHER_ORDER}`
 
 - **`features`**: `Set[float]`
   - Description: Set of feature values (must be between 0 and 1).
