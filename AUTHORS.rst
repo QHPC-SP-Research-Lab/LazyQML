@@ -5,7 +5,7 @@ Credits
 Development Lead
 ----------------
 
-* Quantum and High Performance Computing at University of Oviedo <https://qhpc.uniovi.es>
+* Quantum and High Performance Computing group at University of Oviedo <https://qhpc.uniovi.es>
 
 Contributors
 ------------

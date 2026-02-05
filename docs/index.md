@@ -74,7 +74,7 @@ classifier = QuantumClassifier(nqubits={4}, classifiers={Model.QNN, Model.QSVM},
 classifier.fit(X=X, y=y, test_size=0.4)
 ```
 
-## Quantum and High Performance Computing (QHPC) at University of Oviedo - https://qhpc.uniovi.es
+## Quantum and High Performance Computing (QHPC) group at University of Oviedo - https://qhpc.uniovi.es
 - José Ranilla Pastor - ranilla@uniovi.es
 - Elías Fernández Combarro - efernandezca@uniovi.es
 - Diego García Vega - diegogarciavega@gmail.com

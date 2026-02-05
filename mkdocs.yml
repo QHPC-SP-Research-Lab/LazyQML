@@ -4,7 +4,7 @@ site_author: QHPC Group
 site_url: https://QHPC-SP-Research-Lab.github.io/lazyqml
 repo_url: https://github.com/QHPC-SP-Research-Lab/LazyQML
 
-copyright: "Copyright &copy; 2024 - 2024 Diego García Vega"
+copyright: "Copyright &copy; 2024 - 2024 QHPC Group"
 
 theme:
     palette:
