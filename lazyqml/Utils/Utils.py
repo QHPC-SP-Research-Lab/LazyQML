@@ -112,6 +112,7 @@ def calculate_free_video_memory():
 
 _NVML_INITIALIZED = False
 def gpu_can_run_my_jobs(verbose=True):
+    global _NVML_INITIALIZED
     try:
         gpus = GPUtil.getGPUs()
         if not gpus:

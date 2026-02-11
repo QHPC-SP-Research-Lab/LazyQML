@@ -18,4 +18,4 @@ joblib
 gputil
 quimb
 ipykernel
-pynvml
+nvidia-ml-py
