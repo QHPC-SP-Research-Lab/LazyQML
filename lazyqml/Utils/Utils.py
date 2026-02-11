@@ -132,6 +132,11 @@ def gpu_can_run_my_jobs(verbose=True):
 
             mode = pynvml.nvmlDeviceGetComputeMode(handle)
 
+            if mode == pynvml.NVML_COMPUTEMODE_PROHIBITED:
+                if verbose:
+                    print("GPU compute mode is PROHIBITED. Using CPU.", flush=True)
+                return False
+
             if mode == pynvml.NVML_COMPUTEMODE_EXCLUSIVE_PROCESS:
                 try:
                     procs = pynvml.nvmlDeviceGetComputeRunningProcesses(handle)
