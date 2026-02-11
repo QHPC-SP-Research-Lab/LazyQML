@@ -110,6 +110,48 @@ def calculate_free_video_memory():
         print(f"Error calculating free video memory: {e}")
         return 0  # Return None or an appropriate default value
 
+_NVML_INITIALIZED = False
+def gpu_can_run_my_jobs(verbose=True):
+    try:
+        gpus = GPUtil.getGPUs()
+        if not gpus:
+            if verbose:
+                print("No GPUs found.", flush=True)
+            return False
+
+        gpu = gpus[0]
+        try:
+            import pynvml
+
+            if not _NVML_INITIALIZED:
+                pynvml.nvmlInit()
+                _NVML_INITIALIZED = True
+            
+            handle = pynvml.nvmlDeviceGetHandleByIndex(gpu.id)
+
+            mode = pynvml.nvmlDeviceGetComputeMode(handle)
+
+            if mode == pynvml.NVML_COMPUTEMODE_EXCLUSIVE_PROCESS:
+                try:
+                    procs = pynvml.nvmlDeviceGetComputeRunningProcesses(handle)
+                except Exception:
+                    procs = pynvml.nvmlDeviceGetComputeRunningProcesses_v2(handle)
+
+                if procs and len(procs) > 0:
+                    if verbose:
+                        print(f"GPU is EXCLUSIVE_PROCESS and busy (compute procs={len(procs)}). Using CPU.", flush=True)
+                    return False
+            # DEFAULT (or other) modes: allow
+            return True
+        except Exception as e:
+            if verbose:
+                print(f"Warning: NVML check failed ({e}). Assuming GPU is usable.", flush=True)
+            return True
+    except Exception as e:
+        if verbose:
+            print(f"Error checking GPU status: {e}", flush=True)
+        return False
+
 def create_combinations(classifiers, embeddings, ansatzs, features, qubits, folds, repeats):
     classifier_list = []
     embedding_list = []

@@ -18,3 +18,4 @@ joblib
 gputil
 quimb
 ipykernel
+pynvml

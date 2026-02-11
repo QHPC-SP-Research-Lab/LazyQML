@@ -3,7 +3,7 @@
 from lazyqml.Factories import ModelFactory, PreprocessingFactory
 from lazyqml.Global.globalEnums import Model, Backend
 from .Tasks import QMLTask
-from lazyqml.Utils import printer, calculate_free_memory, get_simulation_type, calculate_free_video_memory, generate_cv_indices, create_combinations, calculate_quantum_memory, get_train_test_split, dataProcessing
+from lazyqml.Utils import printer, calculate_free_memory, get_simulation_type, calculate_free_video_memory, gpu_can_run_my_jobs, generate_cv_indices, create_combinations, calculate_quantum_memory, get_train_test_split, dataProcessing
 
     # External Libraries
 import numpy as np
@@ -223,6 +223,7 @@ class Dispatcher:
 
         RAM = calculate_free_memory()
         VRAM = calculate_free_video_memory()
+        gpu_ok = gpu_can_run_my_jobs(verbose=True)
 
         """
         ################################################################################
@@ -328,7 +329,7 @@ class Dispatcher:
             )
 
             # When adding items to queues
-            if name == Model.QNN and qubits >= self.threshold and VRAM > memModel:
+            if name == Model.QNN and qubits >= self.threshold and gpu_ok and VRAM > memModel:
                 model_factory_params["backend"] = Backend.lightningGPU if not tensor_sim else Backend.lightningTensor
 
                 qmltask.model_params = model_factory_params
@@ -379,7 +380,20 @@ class Dispatcher:
         """
         t_res = time.perf_counter()
 
-        all_results = pd.concat(list(results)).reset_index(drop=True)
+        # all_results = pd.concat(list(results)).reset_index(drop=True)
+        snapshot = list(results)
+        if not snapshot:
+            msg = ("No results were produced. GPU execution likely failed or no GPU tasks completed successfully.")
+            print(msg, flush=True)
+
+            empty_cols = ["Qubits", "Model", "Embedding", "Ansatz", "Features",
+                          "% Features", "% Samples", "Time taken", "Accuracy",
+                          "Balanced Accuracy", "F1 Score"]
+            if self.customMetric:
+                empty_cols.append("Custom Metric")
+            return pd.DataFrame(columns=empty_cols)
+
+        all_results = pd.concat(snapshot, ignore_index=True)
 
         scores = all_results.groupby(['id']).agg({
             'nqubits': 'first',
