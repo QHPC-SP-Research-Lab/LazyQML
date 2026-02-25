@@ -28,6 +28,7 @@ classifiers_box = ipywidgets.VBox(
     [
         ipywidgets.Label("Classifiers"),
         qsvm_checkbox,
+        fast_qsvm_checkbox
         qnn_checkbox,
         qnn_bag_checkbox
     ], 

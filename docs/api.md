@@ -92,7 +92,8 @@ LazyQML supports a variety of quantum models, each suited for different tasks. C
 - `ALL`: All available quantum models.
 - `QNN`: Quantum Neural Network.
 - `QNN_BAG`: Quantum Neural Network with Bagging.
-- `QSVM`: Quantum Support Vector Machine.
+- `QSVM`: Quantum Support Vector Machine. Baseline: precomputed-kernel SVM, without explicit statevector storage.
+- `FastQSVM`: Quantum Support Vector Machine. Fast: precomputed-kernel SVM with RAM-aware block statevector caching.
 - `QKNN`: Quantum k-Nearest Neighbors.
 
 

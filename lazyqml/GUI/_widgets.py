@@ -98,6 +98,10 @@ qsvm_checkbox = ipywidgets.Checkbox(
     description='QSVM'
 )
 
+fast_qsvm_checkbox = ipywidgets.Checkbox(
+    **cb_default_parameters,
+    description='FastQSVM'
+)
 qnn_checkbox = ipywidgets.Checkbox(
     **cb_default_parameters,
     description='QNN'
@@ -232,6 +236,7 @@ all_widgets = [
     splits_widget,
     repeats_widget,
     qsvm_checkbox,
+    fast_qsvm_checkbox,
     qnn_checkbox,
     qnn_bag_checkbox,
     hp_checkbox,

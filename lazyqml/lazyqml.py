@@ -29,7 +29,7 @@ class QuantumClassifier(BaseModel):
     numLayers : int, optional (default=5)
         The number of layers that the QNN models will use.
     classifiers : set of Model enums, optional (default={Model.ALL})
-        Selects the quantum models to build and train. Possible values are: Model.ALL, Model.QNN, Model.QNN_BAG and Model.QSVM
+        Selects the quantum models to build and train. Possible values are: Model.ALL, Model.QNN, Model.QNN_BAG, Model.QSVM and Model.FastQSVM
     ansatzs : set of Ansatzs enums, optional (default={Ansatzs.ALL})
         Selects the ansatzs to build the QNN and QNNBag quantum models. Possible values are: Ansatzs.ALL, Ansatzs.HCZRX, Ansatzs.TREE_TENSOR, Ansatzs.TWO_LOCAL, Ansatzs.HARDWARE_EFFICIENT, Ansatzs.ANNULAR.
     embeddings : list of strings, optional (default={Embedding.ALL})
@@ -336,7 +336,7 @@ if __name__ == '__main__':
     nqubits = {4, 8}
     embeddings = {Embedding.RX, Embedding.DENSE_ANGLE}
     ansatzs = {Ansatzs.TWO_LOCAL}
-    models = {Model.QSVM, Model.QKNN}
+    models = {Model.QSVM, Model.FastQSVM, Model.QKNN}
     layers = 2
     verbose = True
     sequential = False

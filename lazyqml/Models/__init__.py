@@ -1,8 +1,6 @@
-# from .QNNTorch import QNNTorch
-from .QNNBag import QNNBag
-from .FastQSVM import QSVM
-from .FastQNN import QNNTorch
-from .QKNN import QKNN
+from .QKNN   import QKNN
+from .QNN    import QNN, QNNBag
+from .QSVM   import QSVM, FastQSVM
 from .BaseHybridModel import BaseHybridQNNModel, BasicHybridModel
 
-__all__ = ['QNNTorch', 'QNNBag', 'QSVM', 'QKNN', 'BaseHybridQNNModel', 'BasicHybridModel']
+__all__ = ['QNN', 'QNNBag', 'QSVM', 'FastQSVM', 'QKNN', 'BaseHybridQNNModel', 'BasicHybridModel']

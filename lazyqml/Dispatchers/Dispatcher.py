@@ -1,20 +1,20 @@
-# Importing from
-    # Internal Dependencies
-from lazyqml.Factories import ModelFactory, PreprocessingFactory
-from lazyqml.Global.globalEnums import Model, Backend
-from .Tasks import QMLTask
-from lazyqml.Utils import printer, calculate_free_memory, get_simulation_type, calculate_free_video_memory, gpu_can_run_my_jobs, generate_cv_indices, create_combinations, calculate_quantum_memory, get_train_test_split, dataProcessing
+# Standard library
+import queue
+import time
+from multiprocessing import Manager, Pool, Process, Queue
 
-    # External Libraries
+# External Libraries
 import numpy as np
 import pandas as pd
 import psutil
-from threadpoolctl   import threadpool_limits
-from sklearn.metrics import f1_score, accuracy_score, balanced_accuracy_score
-from multiprocessing import Queue, Process, Pool, Manager
-import queue
-import time
-from time import sleep
+from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score
+from threadpoolctl import threadpool_limits
+
+# Local imports
+from .Tasks import QMLTask
+from lazyqml.Factories import ModelFactory, PreprocessingFactory
+from lazyqml.Global.globalEnums import Backend, Model
+from lazyqml.Utils import calculate_free_memory, calculate_free_video_memory, calculate_min_memory_FastQSVM, calculate_quantum_memory, create_combinations, dataProcessing, generate_cv_indices, get_simulation_type, get_train_test_split, gpu_can_run_my_jobs, printer
 
 class Dispatcher:
     def __init__(self,
@@ -132,7 +132,6 @@ class Dispatcher:
                 available_cores = numProcs
             else:
                 available_cores = self.cores
-                # print(f"Available cores: {available_cores}")
         else:
             available_cores = 1
 
@@ -155,8 +154,12 @@ class Dispatcher:
                 while current_cores < max_cores and not cpu_queue.empty():
                     try:
                         qmltask = cpu_queue.get_nowait()
-                        # printer.print(f"ITEM CPU: {item[0]}")
                         mem_model = qmltask.model_memory
+
+                        if (qmltask.model==Model.FastQSVM) and (available_memory < mem_model) and (available_memory > 0):
+                            mem_model = max(available_memory, calculate_min_memory_FastQSVM(qmltask.nqubits))
+                            qmltask.model_memory = mem_model
+                            qmltask.model_params["mem_budget_mb"] = mem_model
 
                         # Verificar si hay recursos suficientes
                         with resource_lock:
@@ -176,7 +179,7 @@ class Dispatcher:
 
                 # Procesar el batch actual si no está vacío
                 if current_batch:
-                    # printer.print(f"Executing Batch of {len(current_batch)} Jobs")
+                    #printer.print(f"Executing Batch of {len(current_batch)} Jobs")
                     with Pool(processes=len(current_batch)) as pool:
                         # Usamos map de forma síncrona para asegurar que todos los items se procesen
                         batch_results = pool.starmap(self.execute_model, [qmltask.get_task_params() for qmltask in current_batch])
@@ -195,7 +198,7 @@ class Dispatcher:
                             # printer.print(f"Freed - Memory: {available_memory}MB, Cores: {available_cores}")
 
                 # printer.print("Waiting for next batch")
-                sleep(0.1)
+                time.sleep(0.1)
 
             except Exception as e:
                 self._print_exception(e)
@@ -223,7 +226,7 @@ class Dispatcher:
 
         RAM = calculate_free_memory()
         VRAM = calculate_free_video_memory()
-        gpu_ok = gpu_can_run_my_jobs(verbose=True)
+        gpu_ok = gpu_can_run_my_jobs(verbose=False)
 
         """
         ################################################################################
@@ -252,7 +255,11 @@ class Dispatcher:
                                         features=self.numFeatures,
                                         ansatzs=self.ansatzs,
                                         repeats=repeats,
-                                        folds=folds)
+                                        folds=folds,
+                                        n_samples_total=len(X),
+                                        mode=mode,
+                                        test_size=testsize,
+                                        free_ram_mb=RAM)
         cancelledQubits = set()
         to_remove = []
 
@@ -265,7 +272,7 @@ class Dispatcher:
 
         for combination in to_remove:
             combinations.remove(combination)
-            cancelledQubits.add(combination[0])
+            cancelledQubits.add(combination[1])
 
         for val in cancelledQubits:
             printer.print(f"Execution with {val} Qubits are cancelled due to memory constrains -> Memory Required: {calculate_quantum_memory(val)/1024:.2f}GB Out of {calculate_free_memory()/1024:.2f}GB")
@@ -317,10 +324,14 @@ class Dispatcher:
                 "epochs": self.epochs,
                 "numPredictors": self.numPredictors
             }
+            if name == Model.FastQSVM:
+                model_factory_params["mem_budget_mb"] = memModel
 
             qmltask = QMLTask(
                 id=id,
                 model_memory=memModel,
+                model=name,
+                nqubits=adjustedQubits,
                 X_train=X_train_processed,
                 X_test=X_test_processed,
                 y_train=y_train_processed,
@@ -353,7 +364,7 @@ class Dispatcher:
         ################################################################################
         """
         # Wait a bit to add remaining tasks to queue
-        sleep(0.1)
+        time.sleep(0.1)
 
         executionTime = time.perf_counter()
         gpu_process = None
@@ -383,7 +394,7 @@ class Dispatcher:
         # all_results = pd.concat(list(results)).reset_index(drop=True)
         snapshot = list(results)
         if not snapshot:
-            msg = ("No results were produced. GPU execution likely failed or no GPU tasks completed successfully.")
+            msg = ("No results were produced due to a GPU-related failure or another exception/error.")
             print(msg, flush=True)
 
             empty_cols = ["Qubits", "Model", "Embedding", "Ansatz", "Features",

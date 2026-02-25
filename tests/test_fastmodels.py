@@ -18,7 +18,7 @@ def import_data(random_state):
 
     return X, y
 
-class TestFastQSVM(unittest.TestCase):
+class TestQSVM(unittest.TestCase):
     def _test_basic_exec(self):
         from lazyqml import QuantumClassifier
         from lazyqml.Global import Embedding, Model
@@ -30,14 +30,14 @@ class TestFastQSVM(unittest.TestCase):
         random_state = 0
         X, y = import_data(random_state)
 
-        nqubits = {18}
+        nqubits = {14}
         embeddings = {Embedding.DENSE_ANGLE}
         models = {Model.QSVM}
         verbose = True
         sequential = False
         # cores = 64
 
-        # No importan
+        # It doesn’t matter
         epochs = 10
         batch_size = 8
 
@@ -56,7 +56,45 @@ class TestFastQSVM(unittest.TestCase):
         # qc.repeated_cross_validation(X,y,n_splits=splits,n_repeats=repeats)
         qc.fit(X, y)
 
-class TestFastQNN(unittest.TestCase):
+class TestFastQSVM(unittest.TestCase):
+    def _test_basic_exec(self):
+        from lazyqml import QuantumClassifier
+        from lazyqml.Global import Embedding, Model
+        from lazyqml.Utils import set_simulation_type, get_max_bond_dim
+
+        # set_simulation_type("tensor")
+        # print(get_max_bond_dim())
+
+        random_state = 0
+        X, y = import_data(random_state)
+
+        nqubits = {14}
+        embeddings = {Embedding.DENSE_ANGLE}
+        models = {Model.FastQSVM}
+        verbose = True
+        sequential = False
+        # cores = 64
+
+        # It doesn’t matter
+        epochs = 10
+        batch_size = 8
+
+        qc = QuantumClassifier(
+            nqubits=nqubits,
+            embeddings=embeddings,
+            classifiers=models,
+            verbose=verbose,
+            sequential=sequential,
+            epochs=epochs,
+            batchSize=batch_size,
+            random_state=random_state)
+        
+        # if cores > 1: qc.repeated_cross_validation(X,y,n_splits=splits,n_repeats=repeats)
+        # else: qc.fit(X, y)
+        # qc.repeated_cross_validation(X,y,n_splits=splits,n_repeats=repeats)
+        qc.fit(X, y)
+
+class TestQNN(unittest.TestCase):
     def test_basic_exec(self):
         from lazyqml import QuantumClassifier
         from lazyqml.Global import Embedding, Ansatzs, Model
@@ -77,7 +115,7 @@ class TestFastQNN(unittest.TestCase):
         verbose = True
         sequential = False
 
-        # No importan
+        # It doesn’t matter
         # splits = 8
         # repeats = 2
         # threshold = 16

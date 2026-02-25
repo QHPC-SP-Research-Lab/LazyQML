@@ -19,6 +19,7 @@ def generate_code(button):
 
     # Classifiers
     qsvm = qsvm_checkbox.value
+    fast_qsvm = fast_qsvm_checkbox.value
     qnn = qnn_checkbox.value
     qnn_bag = qnn_bag_checkbox.value
 
@@ -56,6 +57,7 @@ def generate_code(button):
     selected_classifiers = []
 
     if qsvm: selected_classifiers.append("Model.QSVM")
+    if fast_qsvm: selected_classifiers.append("Model.FastQSVM")
     if qnn: selected_classifiers.append("Model.QNN")
     if qnn_bag: selected_classifiers.append("Model.QNN_BAG")
 

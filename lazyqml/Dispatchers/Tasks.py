@@ -7,6 +7,8 @@ from lazyqml.Global import Model, Embedding, Ansatzs
 class QMLTask:
     id: int
     model_memory: float
+    model: any
+    nqubits: int
     
     X_train: any
     X_test: any

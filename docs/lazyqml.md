@@ -28,7 +28,7 @@
   - Description: Set of classifier models.
   - Constraints: Must contain at least one classifier.
   - Default: `{Model.ALL}`
-  - Options: `{Model.QNN, Model.QSVM, Model.QNN_BAG, Model.QKNN}`
+  - Options: `{Model.QNN, Model.QSVM, Model.FastQSVM, Model.QNN_BAG, Model.QKNN}`
 
 - **`ansatzs`**: `Set[Ansatzs]`
   - Description: Set of quantum ansatz configurations.

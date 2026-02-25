@@ -1,8 +1,8 @@
 import pennylane as qml
-from pennylane.operation import Operation, AnyWires
+from pennylane.operation import Operation
 
 class HigherOrderEmbedding(Operation):
-    num_wires = AnyWires
+    num_wires = None
     grad_method = None
 
     def __init__(self, features, wires, id=None):

@@ -1,6 +1,4 @@
-# Importing Enums
 from lazyqml.Global.globalEnums import Ansatzs, Embedding
-# Importing Circuits
 from lazyqml.Circuits.Ansatzs import HardwareEfficient, HCzRx, TreeTensor, TwoLocal, Annular
 from lazyqml.Circuits.Embeddings import DenseAngleEmbedding, ZZEmbedding, HigherOrderEmbedding
 

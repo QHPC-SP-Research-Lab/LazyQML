@@ -1,10 +1,10 @@
 import pennylane as qml
-from pennylane.operation import Operation, AnyWires
+from pennylane.operation import Operation
 
 import torch.nn.functional as F
 
 class DenseAngleEmbedding(Operation):
-    num_wires = AnyWires
+    num_wires = None
     grad_method = None
 
     def __init__(self, features, wires, id=None):

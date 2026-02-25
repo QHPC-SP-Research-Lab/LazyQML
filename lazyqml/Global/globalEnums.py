@@ -37,6 +37,7 @@ class Model(BaseEnum):
     QNN = 2
     QNN_BAG = 3
     QSVM = 4
+    FastQSVM = 6
     QKNN = 5
 
 class Backend(Enum):

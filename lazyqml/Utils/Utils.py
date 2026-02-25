@@ -1,16 +1,19 @@
-# Imports
-import pandas as pd
-import numpy as np
-import torch
-import psutil
-import GPUtil
+# Standard library
+import math
 from itertools import product
-from sklearn.model_selection import LeaveOneOut, StratifiedKFold, train_test_split
-from threadpoolctl           import threadpool_limits, threadpool_info
 
-# Importing from
+# Third-party libraries
+import GPUtil
+import numpy as np
+import pandas as pd
+import psutil
+import torch
+from sklearn.model_selection import LeaveOneOut, StratifiedKFold, train_test_split
+from threadpoolctl import threadpool_limits, threadpool_info
+
+# Local imports
 from lazyqml.Global.globalEnums import *
-import lazyqml.Global._config as cfg
+import lazyqml.Global.config as cfg
 
 """
 ------------------------------------------------------------------------------------------------------------------
@@ -67,26 +70,23 @@ def adjustQubits(nqubits, numClasses):
         nqubits *= 2
     return int(nqubits)
 
-def calculate_quantum_memory(num_qubits, overhead=2):
+def calculate_quantum_memory(num_qubits):
     """
         Estimates the memory in MiB used by the quantum circuits.
     """
-    # Each qubit state requires 2 complex numbers (amplitude and phase)
-    # Each complex number uses 2 double-precision floats (16 bytes)
-    bytes_per_qubit_state = 16
+    # Complex number bytes, defined in config.py
+    bytes_per_qubit_state = np.dtype(cfg.state_dtype).itemsize
 
     # Number of possible states is 2^n, where n is the number of qubits
     if get_simulation_type() == "statevector":
-        num_states = 2 ** num_qubits
+        num_states = 1 << num_qubits
     else:
         num_states =  num_qubits * (get_max_bond_dim() ** 2)
 
     # Total memory in bytes
-    total_memory_bytes = num_states * bytes_per_qubit_state * overhead
+    total_memory_bytes = num_states * bytes_per_qubit_state * cfg.ram_overhead
 
-    # Convert to more readable units
-
-    return total_memory_bytes / (1024**2)
+    return total_memory_bytes / (1024 * 1024)
 
 def calculate_free_memory():
     """
@@ -97,7 +97,7 @@ def calculate_free_memory():
     free_ram_mb = mem.available / (1024 ** 2)  # Convert bytes to MiB
     return free_ram_mb
 
-def calculate_free_video_memory():
+def calculate_free_video_memory(verbose=False):
     """
     Calculates the amount of free Video Memory.
     """
@@ -107,11 +107,77 @@ def calculate_free_video_memory():
             raise ValueError("No GPUs found.")
         return gpus[0].memoryFree
     except Exception as e:
-        print(f"Error calculating free video memory: {e}")
+        if verbose:
+            print(f"Error calculating free video memory: {e}", flush=True)
         return 0  # Return None or an appropriate default value
 
+
+def _estimate_split_sizes(n, mode, folds, test_size):
+    if mode == "leave-one-out":
+        n_test = 1 if n > 0 else 0
+        n_train = max(0, n - n_test)
+        return n_train, n_test
+
+    if mode == "hold-out":
+        n_test = int(round(n * float(test_size)))
+        if n >= 2:
+            n_test = max(1, min(n - 1, n_test))
+        n_train = max(0, n - n_test)
+        return n_train, n_test
+
+    # default: cross-validation
+    if folds is None or folds <= 1:
+        n_test = max(1, n // 2) if n >= 2 else n
+    else:
+        n_test = int(math.ceil(n / int(folds)))
+        if n >= 2:
+            n_test = max(1, min(n - 1, n_test))
+    n_train = max(0, n - n_test)
+    return n_train, n_test
+
+
+def calculate_min_memory_FastQSVM(nqubits):
+    bytes_per_complex = np.dtype(cfg.state_dtype).itemsize
+    overhead          = cfg.fastqsvm_overhead  
+    dim               = 1 << int(nqubits)
+
+    # States vector MiB
+    MiB_state = (bytes_per_complex * dim) / (1024 * 1024)
+    
+    # FastQSMV needs to store at least two state vectors
+    return MiB_state * overhead * 2
+
+def calculate_quantum_memory_FastQSVM(nqubits, n, mode, folds, test_size, free_ram_mb):
+    bytes_per_complex = np.dtype(cfg.state_dtype).itemsize
+    bytes_per_kernel  = np.dtype(cfg.kernel_dtype).itemsize
+    n_train, n_test   = _estimate_split_sizes(n, mode, folds, test_size) 
+    overhead          = cfg.fastqsvm_overhead  
+    dim               = 1 << int(nqubits)
+
+    # States vector MiB
+    MiB_state = (bytes_per_complex * dim) / (1024 * 1024)
+    
+    # FastQSMV needs to store at least two state vectors
+    if (MiB_state * overhead *2 ) > free_ram_mb: 
+        return MiB_state * overhead
+
+    # Worst-case: n_train x n_train kernel
+    n_elems = n_train * n_train
+
+    # Always allocated in current implementation
+    MiB_kernel_matrix = (n_elems * bytes_per_kernel) / (1024 * 1024) 
+
+    # A-mode extra (worst-case): gram (complex) + cached statevectors (complex)
+    MiB_gram   = (n_elems * bytes_per_complex) / (1024 * 1024) 
+    MiB_states = n_train * MiB_state
+
+    MiB_need_all = (MiB_kernel_matrix + MiB_gram + MiB_states) * overhead
+
+    return min(MiB_need_all, free_ram_mb)
+
+
 _NVML_INITIALIZED = False
-def gpu_can_run_my_jobs(verbose=True):
+def gpu_can_run_my_jobs(verbose=False):
     global _NVML_INITIALIZED
     try:
         gpus = GPUtil.getGPUs()
@@ -158,7 +224,7 @@ def gpu_can_run_my_jobs(verbose=True):
             print(f"Error checking GPU status: {e}", flush=True)
         return False
 
-def create_combinations(classifiers, embeddings, ansatzs, features, qubits, folds, repeats):
+def create_combinations(classifiers, embeddings, ansatzs, features, qubits, folds, repeats, n_samples_total, mode, test_size, free_ram_mb):
     classifier_list = []
     embedding_list = []
     ansatzs_list = []
@@ -197,7 +263,7 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, fold
     for qubits in qubit_values:
         for classifier in classifier_list:
             temp_combinations = []
-            if classifier == Model.QSVM or classifier == Model.QKNN:
+            if classifier == Model.QSVM or classifier == Model.FastQSVM or classifier == Model.QKNN:
                 # QSVM doesn't use ansatzs or features but uses qubits
                 temp_combinations = list(product([qubits], [classifier], embedding_list, [None], [None], repeat_range, folds_range))
             elif classifier == Model.QNN:
@@ -209,10 +275,12 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, fold
 
             # Add memory calculation for each combination
             for combo in temp_combinations:
-                memory = calculate_quantum_memory(combo[0])  # Calculate memory based on number of qubits
+                if combo[1] == Model.FastQSVM:
+                    memory = calculate_quantum_memory_FastQSVM(combo[0], n_samples_total, mode, folds, test_size, free_ram_mb)
+                else:
+                    memory = calculate_quantum_memory(combo[0])  # MiB memory used based on number of qubits
                 combinations.append((combo_counter // cv_size, *combo, memory))
                 combo_counter += 1
-
     return combinations
 
 def fixSeed(seed):
@@ -355,10 +423,10 @@ def find_output_shape(model, sample):
 ######
 def _numpy_math_api():
     runtime_cfg = threadpool_info()
-    for cfg in runtime_cfg:
-        filepath = cfg.get("filepath", "")
+    for item in runtime_cfg:
+        filepath = item.get("filepath", "")
         if "numpy" in filepath:
-            return cfg.get("user_api", None)
+            return item.get("user_api", None)
     return None
 
 
