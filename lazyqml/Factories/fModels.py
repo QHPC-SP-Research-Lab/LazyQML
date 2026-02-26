@@ -30,7 +30,7 @@ class ModelFactory:
             return QKNN(nqubits=nqubits, embedding=embedding, shots=shots, seed=seed, backend=backend, k=K)
         
         elif model == Model.QNN:
-            print(f"N = {nqubits} -> backend {backend.value}")
+            #print(f"N = {nqubits} -> backend {backend.value}")
 
             params = {
                 'nqubits': nqubits,
