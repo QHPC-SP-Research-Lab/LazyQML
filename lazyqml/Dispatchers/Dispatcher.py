@@ -155,7 +155,7 @@ class Dispatcher:
                     try:
                         qmltask = cpu_queue.get_nowait()
                         mem_model = qmltask.model_memory
-
+                        #printer.print(f'mem_model:{mem_model}-available_memory{available_memory}')
                         if (qmltask.model==Model.FastQSVM) and (available_memory < mem_model) and (available_memory > 0):
                             mem_model = max(available_memory, calculate_min_memory_FastQSVM(qmltask.nqubits))
                             qmltask.model_memory = mem_model
@@ -341,7 +341,7 @@ class Dispatcher:
 
             # When adding items to queues
             if name == Model.QNN and qubits >= self.threshold and gpu_ok and VRAM > memModel:
-                model_factory_params["backend"] = Backend.lightningGPU if not tensor_sim else Backend.lightningTensor
+                model_factory_params["backend"] = Backend.lightningGPU if not tensor_sim else Backend.defaultTensor
 
                 qmltask.model_params = model_factory_params
                 gpu_queue.put(qmltask)

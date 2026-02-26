@@ -39,6 +39,8 @@ class Model(BaseEnum):
     QSVM = 4
     FastQSVM = 6
     QKNN = 5
+    FastQKNN = 7
+    QNN_QNSPSA = 8
 
 class Backend(Enum):
     defaultQubit = "default.qubit"
