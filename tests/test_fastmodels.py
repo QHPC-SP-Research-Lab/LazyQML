@@ -5,10 +5,10 @@ from sklearn.datasets        import make_classification
 
 def import_data(random_state):
     X, y = make_classification(
-        n_samples    = 1000,
-        n_features   = 60,
-        n_informative= 20,
-        n_redundant  = 5,
+        n_samples    = 100,
+        n_features   = 7,
+        n_informative= 3,
+        n_redundant  = 2,
         n_repeated   = 0,
         n_classes    = 2,
         class_sep    = 2.0, # problema sencillo
@@ -24,14 +24,14 @@ class TestQSVM(unittest.TestCase):
         from lazyqml.Global import Embedding, Model, Ansatzs
         from lazyqml.Utils import set_simulation_type, get_max_bond_dim, set_max_bond_dim
 
-        set_simulation_type("tensor")
+        set_simulation_type("statevector")
         set_max_bond_dim(1)
         # print(get_max_bond_dim())
 
         random_state = 0
         X, y = import_data(random_state)
 
-        nqubits = {6}
+        nqubits = {7}
         embeddings = {Embedding.RX}
         ansatz = {Ansatzs.TWO_LOCAL}
         models = {Model.QNN}

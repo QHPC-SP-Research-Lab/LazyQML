@@ -397,7 +397,7 @@ class Dispatcher:
             msg = ("No results were produced due to a GPU-related failure or another exception/error.")
             print(msg, flush=True)
 
-            empty_cols = ["Qubits", "Model", "Embedding", "Ansatz", "Features",
+            empty_cols = ["Qubits", "Model", "Embedding", "Ansatz", "Trainable Parameters",
                           "% Features", "% Samples", "Time taken", "Accuracy",
                           "Balanced Accuracy", "F1 Score"]
             if self.customMetric:
@@ -427,7 +427,7 @@ class Dispatcher:
         if not self.customMetric:
             scores = scores.drop(columns=['Custom Metric'])
 
-        scores.columns = ["Qubits", "Model", "Embedding", "Ansatz", "Features", "% Features", "% Samples", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score"]
+        scores.columns = ["Qubits", "Model", "Embedding", "Ansatz", "Trainable Parameters", "% Features", "% Samples", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score"]
 
         # Remove columns if all empty
         scores = scores.dropna(how='all', axis=1)
