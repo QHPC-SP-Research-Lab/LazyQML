@@ -161,7 +161,7 @@ class QNN(Model):
 
 
 class QNNBag(Model):
-    def __init__(self, nqubits, backend, ansatz, embedding, n_class, layers, epochs, n_features, n_samples, n_estimators, shots, lr=0.01, batch_size=50, seed=1234) -> None:
+    def __init__(self, nqubits, backend, ansatz, embedding, n_class, layers, epochs, n_features, n_samples, n_estimators, shots, diff_method, lr=0.01, batch_size=50, seed=1234) -> None:
         super().__init__()
         self.nqubits = nqubits
         self.ansatz = ansatz
@@ -171,6 +171,7 @@ class QNNBag(Model):
         self.layers = layers
         self.epochs = epochs
         self.lr = lr
+        self.diff_method = diff_method
         self.batch_size = batch_size
         self.n_samples = n_samples
         self.n_features = n_features
@@ -196,7 +197,7 @@ class QNNBag(Model):
         embedding: Circuit = self.circuit_factory.GetEmbeddingCircuit(self.embedding)
 
         # Define the quantum circuit as a PennyLane qnode
-        @qml.qnode(self.deviceQ, interface='torch', diff_method='adjoint')
+        @qml.qnode(self.deviceQ, interface='torch', diff_method='best')
         def circuit(x, theta):
             # Apply embedding and ansatz circuits
             embedding(x, wires=range(self.nqubits))
@@ -301,7 +302,7 @@ class QNNBag(Model):
         return self._n_params
     
 
-class QNN_QNSPSA(Model):
+class QNN_SPSA(Model):
     def __init__(
         self,
         nqubits,
@@ -312,27 +313,27 @@ class QNN_QNSPSA(Model):
         epochs,
         shots,
         lr,
-        batch_size   = 10,
-        torch_device = "cpu",
-        backend      = "lightning.qubit",
-        diff_method  = "best",
-        seed         = 1234,
+        batch_size=10,
+        torch_device="cpu",
+        backend="default.tensor",
+        seed=1234,
+        diff_method = 'best'
     ):
         torch.manual_seed(seed)
         np.random.seed(seed)
 
-        self.nqubits      = nqubits
-        self.ansatz       = ansatz
-        self.embedding    = embedding
-        self.n_class      = n_class
-        self.layers       = layers
-        self.epochs       = epochs
-        self.lr           = lr
-        self.batch_size   = batch_size
+        self.nqubits = nqubits
+        self.ansatz_name = ansatz
+        self.embedding_name = embedding
+        self.n_class = n_class
+        self.layers = layers
+        self.epochs = epochs
+        self.lr = lr
+        self.batch_size = batch_size
         self.torch_device = torch_device
-        self.backend      = 'default.tensor'
-        self.diff_method  = diff_method
-        self.shots        = shots
+        self.backend = backend
+        self.shots = shots
+
         self.circuit_factory = CircuitFactory(nqubits, layers)
 
         warnings.filterwarnings("ignore")
@@ -340,135 +341,120 @@ class QNN_QNSPSA(Model):
         self._build_device()
         self._build_qnode()
 
-        self.criterion = nn.BCEWithLogitsLoss() if n_class == 2 else nn.CrossEntropyLoss()
-        self.params    = None
-        self.opt       = None
+        self.criterion = (
+            nn.BCEWithLogitsLoss() if n_class == 2 else nn.CrossEntropyLoss()
+        )
 
-    @property
-    def n_params(self):
-        return self._n_params
+        self.params = None
+        self.opt = None
 
+    # ============================================================
+    # Device
+    # ============================================================
     def _build_device(self):
-        # Create device
-        if get_simulation_type() == "tensor":
-            if self.backend != Backend.lightningTensor:
-                device_kwargs = {
-                    "max_bond_dim": get_max_bond_dim(),
-                    "cutoff": np.finfo(np.complex128).eps,
-                    # "contract": "auto-mps",
-                }
-            else:
-                device_kwargs = {
-                    "max_bond_dim": get_max_bond_dim(),
-                    "cutoff": 1e-10,
-                    "cutoff_mode": "abs",
-                }
-            
-            self.dev = qml.device(self.backend, wires=self.nqubits, method='mps', **device_kwargs)
-        else:
-            self.dev = qml.device(self.backend, wires=self.nqubits)
+        self.dev = qml.device(
+            self.backend,
+            wires=self.nqubits,
+            method="mps",
+        )
 
+    # ============================================================
+    # QNode (broadcast-safe)
+    # ============================================================
     def _build_qnode(self):
-        wires = range(self.nqubits)
+        wires = list(range(self.nqubits))
 
-        ansatz = self.circuit_factory.GetAnsatzCircuit(self.ansatz)
-        embedding = self.circuit_factory.GetEmbeddingCircuit(self.embedding)
+        ansatz_obj = self.circuit_factory.GetAnsatzCircuit(self.ansatz_name)
+        embedding_fn = self.circuit_factory.GetEmbeddingCircuit(
+            self.embedding_name
+        )
 
+        @qml.qnode(self.dev, interface="torch", diff_method=None)
         def circuit(x, params):
-            # self.embedding(x, wires=wires)
-            # self.ansatz(params, wires=wires, nlayers=self.layers)
-
-            embedding(x, wires=wires)
-            ansatz.getCircuit()(params, wires=wires)
+            """
+            x: (batch, features) or single sample
+            params: (n_params,)
+            """
+            embedding_fn(x, wires=wires)
+            ansatz_obj.getCircuit()(params, wires=wires)
 
             if self.n_class == 2:
                 return qml.expval(qml.PauliZ(0))
-            return tuple(qml.expval(qml.PauliZ(i)) for i in range(self.n_class))
+            return [qml.expval(qml.PauliZ(i)) for i in range(self.n_class)]
 
-        # QNode base (sin batch)
-        base_qnode = qml.QNode(circuit, self.dev, interface="torch", diff_method=None, shots=None)
+        self.qnode = circuit
+        self._n_params = ansatz_obj.n_total_params
 
-        # Batching portable
-        self.qnode = qml.batch_input(base_qnode, argnum=0)
-
-        # Retrieve number of parameters from the ansatz
-        self._n_params = ansatz.n_total_params
-
+    # ============================================================
+    # Forward for predictions
+    # ============================================================
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        y = self.qnode(x, self.params)
+        preds = self.qnode(x, self.params)
 
         if self.n_class == 2:
-            return y.reshape(-1, 1)
+            return preds.reshape(-1, 1)
 
-        if isinstance(y, (tuple, list)):
-            y = torch.stack(list(y), dim=0)  # (n_class, batch)
+        # multi-class
+        preds = torch.stack(preds, dim=-1)
+        return preds
 
-        if y.ndim == 2 and y.shape[0] == self.n_class:
-            y = y.transpose(0, 1)  # (batch, n_class)
-        return y
-
+    # ============================================================
+    # Training using SPSAOptimizer
+    # ============================================================
     def fit(self, X, y):
-        X_train = torch.tensor(X, dtype=torch.float32).to(self.torch_device)
+        X_train = torch.tensor(
+            X, dtype=torch.float32, device=self.torch_device
+        )
         y_train = torch.tensor(
             y,
-            dtype=torch.float32 if self.n_class == 2 else torch.long
-        ).to(self.torch_device)
-
+            dtype=torch.float32 if self.n_class == 2 else torch.long,
+            device=self.torch_device,
+        )
         if self.n_class == 2 and y_train.ndim == 1:
             y_train = y_train.unsqueeze(1)
 
-        # Initialize parameters (NO requires_grad needed)
-        self.params = torch.randn((self.n_params,), device=self.torch_device)
+        self.params = torch.randn((self._n_params,), device=self.torch_device)
 
-        # QNSPSA optimizer
-        self.opt = qml.QNSPSAOptimizer(
-            stepsize=self.lr,
-            regularization=1e-3,
-            finite_diff_step=1e-2,
-            blocking=True
-        )
+        self.opt = qml.SPSAOptimizer(maxiter=1)
 
-        ds = torch.utils.data.TensorDataset(X_train, y_train)
-        data_loader = torch.utils.data.DataLoader(
-            ds,
+        dataset = torch.utils.data.TensorDataset(X_train, y_train)
+        loader = torch.utils.data.DataLoader(
+            dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            drop_last=True
+            drop_last=True,
         )
 
-        for _epoch in range(self.epochs):
-            for batch_X, batch_y in data_loader:
+        for _ in range(self.epochs):
+            for batch_X, batch_y in loader:
 
-                def closure(params):
+                def closure(params, **kwargs):
                     preds = self.qnode(batch_X, params)
-
-                    if self.n_class == 2:
-                        preds = preds.reshape(-1, 1)
-                    else:
-                        if isinstance(preds, (tuple, list)):
-                            preds = torch.stack(list(preds), dim=0)
-                        if preds.ndim == 2 and preds.shape[0] == self.n_class:
-                            preds = preds.transpose(0, 1)
-
-                    loss = self.criterion(preds, batch_y)
+                    loss = self.criterion(preds.view(-1, 1), batch_y)
                     return loss
 
-                self.params, loss = self.opt.step_and_cost(closure, self.params)
+                # pass stepsize here
+                self.params = self.opt.step(closure, self.params, stepsize=self.lr)
 
         self.params = self.params.detach()
 
+    # ============================================================
+    # Prediction
+    # ============================================================
     def predict(self, X):
-        X_test = torch.tensor(X, dtype=torch.float32).to(self.torch_device)
+        X_test = torch.tensor(
+            X, dtype=torch.float32, device=self.torch_device
+        )
 
-        preds_all = []
-        bs        = max(1, self.batch_size)
         with torch.inference_mode():
-            for i in range(0, X_test.shape[0], bs):
-                preds_all.append(self.forward(X_test[i:i + bs]))
-        y_pred = torch.cat(preds_all, dim=0)
+            preds = self.forward(X_test)
 
         if self.n_class == 2:
-            y_pred = torch.sigmoid(y_pred.view(-1))
-            return (y_pred > 0.5).cpu().numpy()
+            probs = torch.sigmoid(preds.view(-1))
+            return (probs > 0.5).cpu().numpy()
 
-        return torch.argmax(y_pred, dim=1).cpu().numpy()
+        return torch.argmax(preds, dim=1).cpu().numpy()
+    
+    @property
+    def n_params(self):
+        return self._n_params

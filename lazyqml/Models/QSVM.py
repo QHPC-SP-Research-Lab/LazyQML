@@ -288,7 +288,7 @@ class FastQSVM(Model):
             byt_state_need = bytes_state * dim * number_states
 
             # RAM needed for R and gram matrices:
-            n_elems      = (n1 * n1) if is_symmetric else (n1 * n2)
+            n_elems      = n1 if is_symmetric else (n1 * n2)
             bytes_kernel = np.dtype(self.kernel_dtype).itemsize
             byt_R_need   = n_elems * (bytes_kernel + bytes_state)
 
@@ -579,7 +579,7 @@ class FastQSVM_MPS(Model):
             overhead = config.fastqsvm_overhead
 
             # RAM needed for statevector matrix: 2**nqubits * state_dtype * (n1 or n1+n2) 
-            number_states  = 2 * n1 if is_symmetric else (n1 + n2)
+            number_states  = n1 if is_symmetric else (n1 + n2)
             bytes_state    = np.dtype(self.state_dtype).itemsize
             byt_state_need = bytes_state * dim * number_states
 
@@ -590,7 +590,7 @@ class FastQSVM_MPS(Model):
 
             # Total RAM needed
             MiB_total_need = ((byt_state_need + byt_R_need) * overhead) / (1024 * 1024)
-            printer.print(f'MiB necesarios{MiB_total_need}-Budget_MB{float(self.mem_budget_mb)}')
+            printer.print(f'MiB necesarios {MiB_total_need} - Budget_MB {float(self.mem_budget_mb)}')
             A_mode = (MiB_total_need <= float(self.mem_budget_mb))
 
         printer.print(A_mode)

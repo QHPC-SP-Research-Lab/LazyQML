@@ -1,4 +1,4 @@
-from lazyqml.Models import QNN, QNNBag, QNN_QNSPSA, QSVM, FastQSVM, QKNN, FastQKNN, FastQKNN_MPS, BaseHybridQNNModel, BasicHybridModel, FastQSVM_MPS
+from lazyqml.Models import QNN, QNNBag, QNN_SPSA, QSVM, FastQSVM, QKNN, FastQKNN, FastQKNN_MPS, BaseHybridQNNModel, BasicHybridModel, FastQSVM_MPS
 from lazyqml.Global.globalEnums import *
 from lazyqml.Utils import get_simulation_type, get_max_bond_dim
 
@@ -67,47 +67,54 @@ class ModelFactory:
         
         elif model == Model.QNN:
             #print(f"N = {nqubits} -> backend {backend.value}")
+            simulation_type = get_simulation_type()
 
             params = {
-                'nqubits': nqubits,
-                'ansatz': ansatz,
-                'embedding': embedding,
-                'n_class': n_class,
-                'layers': layers,
-                'epochs': epochs,
-                'shots': shots, 
-                'lr': lr,
-                'batch_size': batch_size,
-                'seed': seed,
-                'torch_device': "cpu",
-                'backend': backend.value,
-                'diff_method': "best"
-            }
+                    'nqubits': nqubits,
+                    'ansatz': ansatz,
+                    'embedding': embedding,
+                    'n_class': n_class,
+                    'layers': layers,
+                    'epochs': epochs,
+                    'shots': shots, 
+                    'lr': lr,
+                    'batch_size': batch_size,
+                    'seed': seed,
+                    'torch_device': "cpu",
+                    'backend': backend.value,
+                    'diff_method': "best"
+                }
 
-            # print(params)
-            return QNN(**params)
+            if simulation_type == 'statevector':
+
+                # print(params)
+                return QNN(**params)
+            
+            else :
+
+                return QNN(**params)
         
-        elif model == Model.QNN_QNSPSA:
-            #print(f"N = {nqubits} -> backend {backend.value}")
+        # elif model == Model.QNN_QNSPSA:
+        #     #print(f"N = {nqubits} -> backend {backend.value}")
 
-            params = {
-                'nqubits': nqubits,
-                'ansatz': ansatz,
-                'embedding': embedding,
-                'n_class': n_class,
-                'layers': layers,
-                'epochs': epochs,
-                'shots': shots, 
-                'lr': lr,
-                'batch_size': batch_size,
-                'seed': seed,
-                'torch_device': "cpu",
-                'backend': backend.value,
-                'diff_method': "best"
-            }
+        #     params = {
+        #         'nqubits': nqubits,
+        #         'ansatz': ansatz,
+        #         'embedding': embedding,
+        #         'n_class': n_class,
+        #         'layers': layers,
+        #         'epochs': epochs,
+        #         'shots': shots, 
+        #         'lr': lr,
+        #         'batch_size': batch_size,
+        #         'seed': seed,
+        #         'torch_device': "cpu",
+        #         'backend': backend.value,
+        #         'diff_method': "best"
+        #     }
 
-            # print(params)
-            return QNN_QNSPSA(**params)
+        #     # print(params)
+        #     return QNN_QNSPSA(**params)
 
         elif model == Model.QNN_BAG:
             return QNNBag(nqubits=nqubits, ansatz=ansatz, embedding=embedding, 

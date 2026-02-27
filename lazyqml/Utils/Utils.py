@@ -81,7 +81,7 @@ def calculate_quantum_memory(num_qubits):
     if get_simulation_type() == "statevector":
         num_states = 1 << num_qubits
     else:
-        num_states =  num_qubits * (get_max_bond_dim() ** 2)
+        num_states =  num_qubits * (get_max_bond_dim() * get_max_bond_dim())
 
     # Total memory in bytes
     total_memory_bytes = num_states * bytes_per_qubit_state * cfg.ram_overhead
@@ -178,7 +178,7 @@ def calculate_quantum_memory_FastQSVM(
 
     MiB_kernel_matrix = (n_elems * bytes_per_kernel) / (1024 * 1024)
     MiB_gram          = (n_elems * bytes_per_complex) / (1024 * 1024)
-    MiB_states        = 2 * n_train * MiB_state
+    MiB_states        = n_train * MiB_state
 
     MiB_need_all = (MiB_kernel_matrix + MiB_gram + MiB_states) * overhead
 

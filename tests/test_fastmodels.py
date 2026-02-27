@@ -21,29 +21,32 @@ def import_data(random_state):
 class TestQSVM(unittest.TestCase):
     def test_basic_exec(self):
         from lazyqml import QuantumClassifier
-        from lazyqml.Global import Embedding, Model
-        from lazyqml.Utils import set_simulation_type, get_max_bond_dim
+        from lazyqml.Global import Embedding, Model, Ansatzs
+        from lazyqml.Utils import set_simulation_type, get_max_bond_dim, set_max_bond_dim
 
-        set_simulation_type("statevector")
+        set_simulation_type("tensor")
+        set_max_bond_dim(1)
         # print(get_max_bond_dim())
 
         random_state = 0
         X, y = import_data(random_state)
 
-        nqubits = {16}
+        nqubits = {6}
         embeddings = {Embedding.RX}
-        models = {Model.FastQSVM}
+        ansatz = {Ansatzs.TWO_LOCAL}
+        models = {Model.QNN}
         verbose = True
         sequential = False
         # cores = 64
 
         # It doesn’t matter
-        epochs = 10
+        epochs = 2
         batch_size = 8
 
         qc = QuantumClassifier(
             nqubits=nqubits,
             embeddings=embeddings,
+            ansatzs=ansatz,
             classifiers=models,
             verbose=verbose,
             sequential=sequential,
