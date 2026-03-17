@@ -95,8 +95,7 @@ LazyQML supports a variety of quantum models, each suited for different tasks. C
 - `QSVM`: Quantum Support Vector Machine. Baseline: precomputed-kernel SVM, without explicit statevector storage.
 - `FastQSVM`: Quantum Support Vector Machine. Fast: precomputed-kernel SVM with RAM-aware block statevector caching.
 - `QKNN`: Quantum k-Nearest Neighbors.
-
-
+- `HybridCNNQNN`: For audio or image-like data using a hybrid model combining a CNN (feature extractor) and a QNN (quantum classifier).
 
 ## What's Next?
 

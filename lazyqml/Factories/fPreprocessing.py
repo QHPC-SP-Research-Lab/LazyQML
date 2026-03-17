@@ -1,6 +1,6 @@
 # Importing from
 from lazyqml.Global.globalEnums import *
-from lazyqml.Preprocessing import PCAHelper, Sanitizer
+from lazyqml.Preprocessing import AcousticFeatures, PCAHelper, Sanitizer
 
 class PreprocessingFactory:
     def __init__(self, nqubits) -> None:
@@ -8,6 +8,9 @@ class PreprocessingFactory:
 
     def GetSanitizer(self, imputerCat, imputerNum):
         return Sanitizer(imputerCat, imputerNum)
+
+    def GetAcousticFeatures(self, **kwargs):
+        return AcousticFeatures(**kwargs)
 
     def GetPreprocessing(self, embedding, ansatz):
         if embedding == Embedding.AMP and ansatz == Ansatzs.TREE_TENSOR:
