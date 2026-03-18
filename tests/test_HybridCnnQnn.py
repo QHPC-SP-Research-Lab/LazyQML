@@ -4,6 +4,8 @@ import argparse
 from pathlib import Path
 import numpy as np
 
+from sklearn.metrics import f1_score, accuracy_score, balanced_accuracy_score
+
 from lazyqml.Preprocessing import MelSpectrogram
 from lazyqml.Models.HybridCNNQNN import HybridCNNQNN
 from lazyqml.Global.globalEnums import Ansatzs, Embedding
@@ -79,9 +81,13 @@ def main():
     # --------------------------------------------------
     # 3. Predict
     # --------------------------------------------------
-    y_pred = model.predict(X)
+    preds = model.predict(X)
 
-    print("Predictions:", y_pred)
+    accuracy   = accuracy_score(y, preds)
+    b_accuracy = balanced_accuracy_score(y, preds)
+    f1         = f1_score(y, preds, average="weighted")
+
+    print(f"{accuracy:.3f}, {b_accuracy:.3f}, {f1:.3f}", flush=True)
 
 if __name__ == "__main__":
     main()
