@@ -2,7 +2,7 @@
 
 __author__ = """QHPC Group (University of Oviedo)"""
 __email__ = "https://qhpc.uniovi.es"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 from .lazyqml import QuantumClassifier
 
