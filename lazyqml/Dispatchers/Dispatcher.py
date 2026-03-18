@@ -155,7 +155,7 @@ class Dispatcher:
                     try:
                         qmltask = cpu_queue.get_nowait()
                         mem_model = qmltask.model_memory
-
+                        #printer.print(f'mem_model:{mem_model}-available_memory{available_memory}')
                         if (qmltask.model==Model.FastQSVM) and (available_memory < mem_model) and (available_memory > 0):
                             mem_model = max(available_memory, calculate_min_memory_FastQSVM(qmltask.nqubits))
                             qmltask.model_memory = mem_model
@@ -341,7 +341,7 @@ class Dispatcher:
 
             # When adding items to queues
             if name == Model.QNN and qubits >= self.threshold and gpu_ok and VRAM > memModel:
-                model_factory_params["backend"] = Backend.lightningGPU if not tensor_sim else Backend.lightningTensor
+                model_factory_params["backend"] = Backend.lightningGPU if not tensor_sim else Backend.defaultTensor
 
                 qmltask.model_params = model_factory_params
                 gpu_queue.put(qmltask)
@@ -397,7 +397,7 @@ class Dispatcher:
             msg = ("No results were produced due to a GPU-related failure or another exception/error.")
             print(msg, flush=True)
 
-            empty_cols = ["Qubits", "Model", "Embedding", "Ansatz", "Features",
+            empty_cols = ["Qubits", "Model", "Embedding", "Ansatz", "Trainable Parameters",
                           "% Features", "% Samples", "Time taken", "Accuracy",
                           "Balanced Accuracy", "F1 Score"]
             if self.customMetric:
@@ -427,7 +427,7 @@ class Dispatcher:
         if not self.customMetric:
             scores = scores.drop(columns=['Custom Metric'])
 
-        scores.columns = ["Qubits", "Model", "Embedding", "Ansatz", "Features", "% Features", "% Samples", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score"]
+        scores.columns = ["Qubits", "Model", "Embedding", "Ansatz", "Trainable Parameters", "% Features", "% Samples", "Time taken", "Accuracy", "Balanced Accuracy", "F1 Score"]
 
         # Remove columns if all empty
         scores = scores.dropna(how='all', axis=1)

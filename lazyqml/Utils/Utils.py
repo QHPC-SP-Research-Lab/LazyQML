@@ -81,7 +81,7 @@ def calculate_quantum_memory(num_qubits):
     if get_simulation_type() == "statevector":
         num_states = 1 << num_qubits
     else:
-        num_states =  num_qubits * (get_max_bond_dim() ** 2)
+        num_states =  num_qubits * (get_max_bond_dim() * get_max_bond_dim())
 
     # Total memory in bytes
     total_memory_bytes = num_states * bytes_per_qubit_state * cfg.ram_overhead
@@ -138,38 +138,47 @@ def _estimate_split_sizes(n, mode, folds, test_size):
 
 def calculate_min_memory_FastQSVM(nqubits):
     bytes_per_complex = np.dtype(cfg.state_dtype).itemsize
-    overhead          = cfg.fastqsvm_overhead  
-    dim               = 1 << int(nqubits)
+    overhead = cfg.fastqsvm_overhead  
 
-    # States vector MiB
+    # Choose representation
+    if get_simulation_type() == "statevector":
+        dim = 1 << int(nqubits)  # 2^n
+    else:  # tensor (MPS)
+        bond_dim = get_max_bond_dim()
+        dim = 0.25 * nqubits * (bond_dim ** 2)
+
     MiB_state = (bytes_per_complex * dim) / (1024 * 1024)
-    
-    # FastQSMV needs to store at least two state vectors
+
+    # FastQSVM needs at least two state representations
     return MiB_state * overhead * 2
 
-def calculate_quantum_memory_FastQSVM(nqubits, n, mode, folds, test_size, free_ram_mb):
+def calculate_quantum_memory_FastQSVM(
+    nqubits, n, mode, folds, test_size, free_ram_mb
+):
     bytes_per_complex = np.dtype(cfg.state_dtype).itemsize
     bytes_per_kernel  = np.dtype(cfg.kernel_dtype).itemsize
-    n_train, n_test   = _estimate_split_sizes(n, mode, folds, test_size) 
+    n_train, n_test   = _estimate_split_sizes(n, mode, folds, test_size)
     overhead          = cfg.fastqsvm_overhead  
-    dim               = 1 << int(nqubits)
 
-    # States vector MiB
+    # Choose representation
+    if get_simulation_type() == "statevector":
+        dim = 1 << int(nqubits)  # 2^n
+    else:  # tensor (MPS)
+        bond_dim = get_max_bond_dim()
+        dim = 0.25 * nqubits * (bond_dim ** 2)
+
     MiB_state = (bytes_per_complex * dim) / (1024 * 1024)
-    
-    # FastQSMV needs to store at least two state vectors
-    if (MiB_state * overhead *2 ) > free_ram_mb: 
+
+    # If we can't even store minimal state buffers
+    if (MiB_state * overhead * 2) > free_ram_mb:
         return MiB_state * overhead
 
-    # Worst-case: n_train x n_train kernel
+    # Worst-case: full kernel matrix
     n_elems = n_train * n_train
 
-    # Always allocated in current implementation
-    MiB_kernel_matrix = (n_elems * bytes_per_kernel) / (1024 * 1024) 
-
-    # A-mode extra (worst-case): gram (complex) + cached statevectors (complex)
-    MiB_gram   = (n_elems * bytes_per_complex) / (1024 * 1024) 
-    MiB_states = n_train * MiB_state
+    MiB_kernel_matrix = (n_elems * bytes_per_kernel) / (1024 * 1024)
+    MiB_gram          = (n_elems * bytes_per_complex) / (1024 * 1024)
+    MiB_states        = n_train * MiB_state
 
     MiB_need_all = (MiB_kernel_matrix + MiB_gram + MiB_states) * overhead
 

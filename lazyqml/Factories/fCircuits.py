@@ -1,6 +1,6 @@
 from lazyqml.Global.globalEnums import Ansatzs, Embedding
 from lazyqml.Circuits.Ansatzs import HardwareEfficient, HCzRx, TreeTensor, TwoLocal, Annular
-from lazyqml.Circuits.Embeddings import DenseAngleEmbedding, ZZEmbedding, HigherOrderEmbedding
+from lazyqml.Circuits.Embeddings import DenseAngleEmbedding, ZZEmbedding, HigherOrderEmbedding, DenseAngleEmbeddingMPS, ZZEmbeddingMPS, HigherOrderEmbeddingMPS, AngleEmbeddingMPS
 
 from functools import partial
 import pennylane as qml
@@ -47,3 +47,22 @@ class CircuitFactory:
         
         elif embedding == Embedding.HIGHER_ORDER:
             return HigherOrderEmbedding
+        
+    def GetEmbeddingCircuitMPS(self, embedding):
+        if embedding == Embedding.RX:
+            return AngleEmbeddingMPS(self.nqubits, 'RX')
+        
+        elif embedding == Embedding.RY:
+            return AngleEmbeddingMPS(self.nqubits, 'RY')
+        
+        elif embedding == Embedding.RZ:
+            return AngleEmbeddingMPS(self.nqubits, 'RZ')
+
+        elif embedding == Embedding.ZZ:
+            return ZZEmbeddingMPS(self.nqubits)
+        
+        elif embedding == Embedding.DENSE_ANGLE:
+            return DenseAngleEmbeddingMPS(self.nqubits)
+        
+        elif embedding == Embedding.HIGHER_ORDER:
+            return HigherOrderEmbeddingMPS(self.nqubits)
