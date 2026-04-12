@@ -43,6 +43,7 @@ class Model(BaseEnum):
     MPSQKNN  = 8
     MPSQNN   = 9
     MPSQSVM  = 10
+    HybridCNNQNN  = 11
 
 
 class Backend(BaseEnum):
