@@ -32,8 +32,7 @@ class Sanitizer(Preprocessing):
         return self.preprocessor.fit(X)
 
     def fit_transform(self, X):
-        self.preprocessor.fit(X)
-        return self
+        return self.preprocessor.fit(X)
 
     def transform(self, X):
         return self.preprocessor.transform(X)
