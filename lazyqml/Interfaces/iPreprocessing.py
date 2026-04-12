@@ -1,14 +1,14 @@
-from abc import ABC, abstractmethod 
+from abc import ABC, abstractmethod
 
 class Preprocessing(ABC):
     @abstractmethod
-    def fit(X, y, self):
+    def fit(self, X, y=None):
         pass
     
     @abstractmethod
-    def fit_transform(X, y, self):
+    def fit_transform(self, X, y=None):
         pass
 
     @abstractmethod
-    def transform(X, self):
+    def transform(self, X):
         pass
