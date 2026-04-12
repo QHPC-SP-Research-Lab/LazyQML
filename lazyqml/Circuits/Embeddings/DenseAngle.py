@@ -4,21 +4,19 @@ from pennylane.operation import Operation
 import torch.nn.functional as F
 
 class DenseAngleEmbedding(Operation):
-    num_wires = None
+    num_wires   = None
     grad_method = None
 
     def __init__(self, features, wires, id=None):
-        
-        shape = qml.math.shape(features)[-1:]
+        shape      = qml.math.shape(features)[-1:]
         n_features = shape[0]
+
         if n_features > 2*len(wires):
-            raise ValueError(
-                f"Features must be of length {2*len(wires)} or less; got length {n_features}."
-            )
+            raise ValueError(f"Features must be of length {2*len(wires)} or less; got length {n_features}.")
 
         self._hyperparameters = {}
+        #wires = wires[:n_features] 
 
-        wires = wires[:n_features]
         super().__init__(features, wires=wires, id=id)
 
     @property
@@ -27,13 +25,10 @@ class DenseAngleEmbedding(Operation):
 
     @staticmethod
     def compute_decomposition(features, wires):
-
-        op_list = []
-
-        n_qubits = len(wires)
-
-        batched = qml.math.ndim(features) > 1
-        shape = tuple(features.shape)
+        op_list    = []
+        n_qubits   = len(wires)
+        batched    = qml.math.ndim(features) > 1
+        shape      = tuple(features.shape)
         n_features = shape[0] if not batched else shape[1]
 
         # Padding if necessary
@@ -47,8 +42,11 @@ class DenseAngleEmbedding(Operation):
         features = qml.math.T(features) if batched else features
 
         # qml.AngleEmbedding(x[..., :N], wires=wires, rotation='Y')
-        for i in wires:
-            op_list.append(qml.RY(features[i], wires=i))
-            op_list.append(qml.PhaseShift(features[n_qubits + i], wires=i))
+        for k, w in enumerate(wires):
+            op_list.append(qml.RY(features[k], wires=w))
+            op_list.append(qml.PhaseShift(features[n_qubits + k], wires=w))
+        #for i in wires:
+        #    op_list.append(qml.RY(features[i], wires=i))
+        #    op_list.append(qml.PhaseShift(features[n_qubits + i], wires=i))
 
         return op_list

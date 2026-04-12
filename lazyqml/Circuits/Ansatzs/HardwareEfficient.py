@@ -4,7 +4,7 @@ import pennylane as qml
 class HardwareEfficient(Ansatz):
     def getCircuit(self):
         def hardware_efficient_ansatz(theta, wires):
-            """Implements a hardware-efficient ansatz circuit.
+            """Implements a hardware-efficient ansatz circuit. 
 
             Args:
                 theta (array[float]): array of parameters for the ansatz circuit

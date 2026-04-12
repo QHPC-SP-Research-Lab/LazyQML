@@ -37,19 +37,6 @@ set_max_bond_dim(32)
 set_simulation_type('statevector')
 ```
 
-<!-- #### Importing State Vector Simulation Variant:
-```python
-from lazyqml.st import *
-```
-
-- Use this import to access the **QuantumClassifier** based on **State Vector simulations**, simulating the full quantum state for an intuitive understanding.
-
-#### Importing Tensor Network Variant:
-```python
-from lazyqml.tn import *
-```
-- Use this import to access the **QuantumClassifier** based on **Tensor Networks**, offering efficient simulation of larger quantum systems using approximate methods. -->
-
 ### 3. **Training and Evaluation Methods**
 
 LazyQML offers you three robust methods to train and evaluate your quantum models. These methods are designed to give you complete control over the classification process:
@@ -90,15 +77,18 @@ Embeddings control how your classical data is encoded onto quantum states. LazyQ
 LazyQML supports a variety of quantum models, each suited for different tasks. Choose the model that best fits your data and problem:
 
 - `ALL`: All available quantum models.
-- `QNN`: Quantum Neural Network.
-- `QNN_BAG`: Quantum Neural Network with Bagging.
-- `QSVM`: Quantum Support Vector Machine. Baseline: precomputed-kernel SVM, without explicit statevector storage.
-- `FastQSVM`: Quantum Support Vector Machine. Fast: precomputed-kernel SVM with RAM-aware block statevector caching.
-- `QKNN`: Quantum k-Nearest Neighbors.
-- `HybridCNNQNN`: For audio or image-like data using a hybrid model combining a CNN (feature extractor) and a QNN (quantum classifier).
+- `QNN`: Variational quantum neural network. Statevector-only simulation; supports exact (`shots=None`) and shot-based execution.
+- `QNNBag`: Bagging ensemble of variational quantum neural networks. Statevector-only simulation; supports exact (`shots=None`) and shot-based execution.
+- `MPSQNN`: MPS-based (tensor network) variational quantum neural network.
+- `QSVM`: Quantum-kernel SVM. Supports exact (`shots=None`) and shot-based execution.
+- `FastQSVM`: Statevector-only (`shots=None` in practice, via state-return simulation); equivalent to QSVM but more efficient through RAM-aware block computation. Precomputed-kernel.
+- `MPSQSVM`: MPS-based (tensor network) quantum-kernel SVM; approximate depending on bond dimension. Precomputed-kernel SVM.
+- `QKNN`: Quantum-kernel k-nearest neighbors classifier. Supports exact (`shots=None`) and shot-based execution. Distance = 1 − kernel.
+- `FastQKNN`: Statevector-only (`shots=None` in practice, via state-return simulation); equivalent to QKNN but more efficient through RAM-aware block computation.
+- `MPSQKNN`: MPS-based (tensor network) quantum-kernel k-nearest neighbors classifier; approximate depending on bond dimension.
 
 ## What's Next?
 
 This overview introduces you to the powerful features of **LazyQML** and the **QuantumClassifier**. Whether you’re just getting started or you’re a quantum computing pro, LazyQML simplifies quantum machine learning.
 
-For more detailed documentation on each function, parameter, and quantum algorithm, head over to the full documentation pages. Get ready to dive into the world of quantum classification with LazyQML – your quantum adventure begins here!
+For more detailed documentation on each function, parameter, and quantum algorithm, head over to the full documentation pages. Get ready to dive into the world of quantum classification with LazyQML – your quantum adventure begins here! 

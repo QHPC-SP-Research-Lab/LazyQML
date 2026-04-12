@@ -9,7 +9,7 @@ class AngleEmbeddingMPS:
             rot (str): rotation gate name ("RX", "RY", "RZ", etc.)
         """
         self.nqubits = nqubits
-        self.rot = rot.upper()  # normalize
+        self.rot = rot.upper()  # normalize 
 
     def __call__(self, circuit, features):
         """

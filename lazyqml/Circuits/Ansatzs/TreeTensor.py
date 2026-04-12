@@ -5,7 +5,7 @@ import numpy as np
 class TreeTensor(Ansatz):
     def getCircuit(self):
         def tree_tensor_ansatz(theta, wires):
-            """Implements a tree tensor network ansatz circuit.
+            """Implements a tree tensor network ansatz circuit. 
 
             Args:
                 theta (array[float]): array of parameters for the ansatz circuit

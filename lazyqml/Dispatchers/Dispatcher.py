@@ -1,4 +1,4 @@
-# Standard library
+# Standard library 
 import queue
 import time
 from multiprocessing import Manager, Pool, Process, Queue
@@ -14,7 +14,7 @@ from threadpoolctl import threadpool_limits
 from .Tasks import QMLTask
 from lazyqml.Factories import ModelFactory, PreprocessingFactory
 from lazyqml.Global.globalEnums import Backend, Model
-from lazyqml.Utils import calculate_free_memory, calculate_free_video_memory, calculate_min_memory_FastQSVM, calculate_quantum_memory, create_combinations, dataProcessing, generate_cv_indices, get_simulation_type, get_train_test_split, gpu_can_run_my_jobs, printer
+from lazyqml.Utils import calculate_free_memory, calculate_free_video_memory, calculate_min_memory_Fast, calculate_quantum_memory, create_combinations, dataProcessing, generate_cv_indices, get_simulation_type, get_train_test_split, gpu_can_run_my_jobs, printer
 
 class Dispatcher:
     def __init__(self,
@@ -31,7 +31,6 @@ class Dispatcher:
                 numFeatures,
                 learningRate,
                 epochs,
-                runs,
                 batch,
                 numSamples,
                 customMetric,
@@ -73,7 +72,7 @@ class Dispatcher:
 
         start = time.perf_counter()
         # To force limit the ammount of threads the experiment uses
-        if model_params["model"] == Model.QNN:
+        if model_params["model"] in {Model.QNN, Model.QNNBAG, Model.MPSQNN}:
             with threadpool_limits(limits=1):
                 model.fit(X=X_train, y=y_train)
                 y_pred = model.predict(X=X_test)
@@ -97,8 +96,7 @@ class Dispatcher:
             "Accuracy": accuracy,
             "Balanced Accuracy": b_accuracy,
             "F1 Score": f1,
-            "Custom Metric": custom,
-            "Predictions": 0
+            "Custom Metric": custom
         }
 
         result = pd.DataFrame([{'id': id, **model_attr, 'features': model.n_params, **metric_results}])
@@ -155,9 +153,9 @@ class Dispatcher:
                     try:
                         qmltask = cpu_queue.get_nowait()
                         mem_model = qmltask.model_memory
-                        #printer.print(f'mem_model:{mem_model}-available_memory{available_memory}')
+                        #printer.print(f'mem_model: {mem_model} - available_memory {available_memory}')
                         if (qmltask.model==Model.FastQSVM) and (available_memory < mem_model) and (available_memory > 0):
-                            mem_model = max(available_memory, calculate_min_memory_FastQSVM(qmltask.nqubits))
+                            mem_model = max(available_memory, calculate_min_memory_Fast(qmltask.nqubits))
                             qmltask.model_memory = mem_model
                             qmltask.model_params["mem_budget_mb"] = mem_model
 
@@ -324,6 +322,7 @@ class Dispatcher:
                 "epochs": self.epochs,
                 "numPredictors": self.numPredictors
             }
+
             if name == Model.FastQSVM:
                 model_factory_params["mem_budget_mb"] = memModel
 
@@ -340,7 +339,7 @@ class Dispatcher:
             )
 
             # When adding items to queues
-            if name == Model.QNN and qubits >= self.threshold and gpu_ok and VRAM > memModel:
+            if name in {Model.QNN, Model.QNNBAG, Model.MPSQNN} and qubits >= self.threshold and gpu_ok and VRAM > memModel:
                 model_factory_params["backend"] = Backend.lightningGPU if not tensor_sim else Backend.defaultTensor
 
                 qmltask.model_params = model_factory_params
@@ -421,7 +420,7 @@ class Dispatcher:
             'Custom Metric': 'mean'
         })
 
-        scores.loc[scores['model'] != Model.QNN_BAG, 'n_samples'] = np.nan
+        scores.loc[scores['model'] != Model.QNNBAG, 'n_samples'] = np.nan
  
         # Clean and format dataframe
         if not self.customMetric:

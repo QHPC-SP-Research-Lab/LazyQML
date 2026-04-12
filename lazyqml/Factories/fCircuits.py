@@ -33,7 +33,6 @@ class CircuitFactory:
             def RZ(inputs, wires):
                 [qml.Hadamard(i) for i in wires]
                 qml.AngleEmbedding(inputs, wires, rotation='Z')
-
             return RZ
         
         elif embedding == Embedding.ZZ:
@@ -66,3 +65,8 @@ class CircuitFactory:
         
         elif embedding == Embedding.HIGHER_ORDER:
             return HigherOrderEmbeddingMPS(self.nqubits)
+
+        #elif embedding == Embedding.AMP:
+        #    raise NotImplementedError("Amplitude embedding is not supported for the MPS backend.") 
+
+        raise ValueError(f"Embedding {embedding} is not supported for MPS.")

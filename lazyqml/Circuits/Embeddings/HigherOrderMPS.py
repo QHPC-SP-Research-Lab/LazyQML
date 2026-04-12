@@ -2,13 +2,12 @@ import numpy as np
 from itertools import combinations
 
 class HigherOrderEmbeddingMPS():
-
     def __init__(self, nqubits):
         self.nqubits = nqubits
 
     def __call__(self, circuit, features):
         """
-        Apply higher-order embedding to an existing quimb CircuitMPS.
+        Apply higher-order embedding to an existing quimb CircuitMPS. 
 
         Args:
             circuit (qtn.CircuitMPS): Existing circuit object.

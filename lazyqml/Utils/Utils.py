@@ -9,7 +9,7 @@ import pandas as pd
 import psutil
 import torch
 from sklearn.model_selection import LeaveOneOut, StratifiedKFold, train_test_split
-from threadpoolctl import threadpool_limits, threadpool_info
+from threadpoolctl import threadpool_info
 
 # Local imports
 from lazyqml.Global.globalEnums import *
@@ -136,9 +136,9 @@ def _estimate_split_sizes(n, mode, folds, test_size):
     return n_train, n_test
 
 
-def calculate_min_memory_FastQSVM(nqubits):
+def calculate_min_memory_Fast(nqubits):
     bytes_per_complex = np.dtype(cfg.state_dtype).itemsize
-    overhead = cfg.fastqsvm_overhead  
+    overhead = cfg.fast_overhead  
 
     # Choose representation
     if get_simulation_type() == "statevector":
@@ -149,16 +149,14 @@ def calculate_min_memory_FastQSVM(nqubits):
 
     MiB_state = (bytes_per_complex * dim) / (1024 * 1024)
 
-    # FastQSVM needs at least two state representations
+    # Fast needs at least two state representations
     return MiB_state * overhead * 2
 
-def calculate_quantum_memory_FastQSVM(
-    nqubits, n, mode, folds, test_size, free_ram_mb
-):
+def calculate_quantum_memory_Fast(nqubits, n, mode, folds, test_size, free_ram_mb):
     bytes_per_complex = np.dtype(cfg.state_dtype).itemsize
     bytes_per_kernel  = np.dtype(cfg.kernel_dtype).itemsize
     n_train, n_test   = _estimate_split_sizes(n, mode, folds, test_size)
-    overhead          = cfg.fastqsvm_overhead  
+    overhead          = cfg.fast_overhead  
 
     # Choose representation
     if get_simulation_type() == "statevector":
@@ -168,10 +166,12 @@ def calculate_quantum_memory_FastQSVM(
         dim = 0.25 * nqubits * (bond_dim ** 2)
 
     MiB_state = (bytes_per_complex * dim) / (1024 * 1024)
+    min_buffers_mib = MiB_state * overhead * 2
 
     # If we can't even store minimal state buffers
+    if min_buffers_mib > free_ram_mb:
     if (MiB_state * overhead * 2) > free_ram_mb:
-        return MiB_state * overhead
+        return min_buffers_mib
 
     # Worst-case: full kernel matrix
     n_elems = n_train * n_train
@@ -268,24 +268,26 @@ def create_combinations(classifiers, embeddings, ansatzs, features, qubits, fold
 
     combo_counter = 0
     combinations = []
-    # Create all base combinations first
+    # Create all base combinations first 
     for qubits in qubit_values:
         for classifier in classifier_list:
             temp_combinations = []
-            if classifier == Model.QSVM or classifier == Model.FastQSVM or classifier == Model.QKNN:
+            if classifier in {Model.QSVM, Model.FastQSVM, Model.MPSQSVM, Model.QKNN, Model.FastQKNN, Model.MPSQKNN}:
                 # QSVM doesn't use ansatzs or features but uses qubits
                 temp_combinations = list(product([qubits], [classifier], embedding_list, [None], [None], repeat_range, folds_range))
-            elif classifier == Model.QNN:
+            elif classifier in {Model.QNN, Model.MPSQNN}:
                 # QNN uses ansatzs and qubits
                 temp_combinations = list(product([qubits], [classifier], embedding_list, ansatzs_list, [None], repeat_range, folds_range))
-            elif classifier == Model.QNN_BAG:
-                # QNN_BAG uses ansatzs, features, and qubits
+            elif classifier == Model.QNNBAG:
+                # QNNBAG uses ansatzs, features, and qubits
                 temp_combinations = list(product([qubits], [classifier], embedding_list, ansatzs_list, features, repeat_range, folds_range))
+            elif classifier == Model.HybridCNNQNN:
+                continue
 
             # Add memory calculation for each combination
             for combo in temp_combinations:
-                if combo[1] == Model.FastQSVM:
-                    memory = calculate_quantum_memory_FastQSVM(combo[0], n_samples_total, mode, folds, test_size, free_ram_mb)
+                if combo[1] in {Model.FastQSVM, Model.FastQKNN}:
+                    memory = calculate_quantum_memory_Fast(combo[0], n_samples_total, mode, folds, test_size, free_ram_mb)
                 else:
                     memory = calculate_quantum_memory(combo[0])  # MiB memory used based on number of qubits
                 combinations.append((combo_counter // cv_size, *combo, memory))
@@ -389,29 +391,39 @@ def dataProcessing(X, y, prepFactory, customImputerCat, customImputerNum,
     Returns:
     Tuple of (X_train_processed, X_test_processed, y_train, y_test)
     """
-    # Split the data using provided indices
-    X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-    y_train, y_test = y[train_idx], y[test_idx]
+
+    # Split X
+    if isinstance(X, pd.DataFrame):
+        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+    else:
+        X_train, X_test = X[train_idx], X[test_idx]
+
+    # Split y
+    if isinstance(y, (pd.Series, pd.DataFrame)):
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+    else:
+        y_train, y_test = y[train_idx], y[test_idx]
 
     # Create sanitizer and preprocess
     sanitizer = prepFactory.GetSanitizer(customImputerCat, customImputerNum)
-    X_train = pd.DataFrame(sanitizer.fit_transform(X_train))
-    X_test = pd.DataFrame(sanitizer.transform(X_test))
+    X_train   = pd.DataFrame(sanitizer.fit_transform(X_train))
+    X_test    = pd.DataFrame(sanitizer.transform(X_test))
 
     # Apply additional preprocessing if ansatz/embedding provided
     if ansatz is not None or embedding is not None:
-        preprocessing = prepFactory.GetPreprocessing(ansatz=ansatz, embedding=embedding)
-        X_train_processed = np.array(preprocessing.fit_transform(X_train, y=y_train))
-        X_test_processed = np.array(preprocessing.transform(X_test))
+        preprocessing     = prepFactory.GetPreprocessing(ansatz=ansatz, embedding=embedding)
+        X_train_processed = np.array(preprocessing.fit_transform(X_train, y=np.array(y_train)))
+        X_test_processed  = np.array(preprocessing.transform(X_test))
     else:
         X_train_processed = np.array(X_train)
-        X_test_processed = np.array(X_test)
+        X_test_processed  = np.array(X_test)
 
     # Convert target variables to numpy arrays
     y_train = np.array(y_train)
     y_test = np.array(y_test)
 
     return X_train_processed, X_test_processed, y_train, y_test
+
 
 ######
 def get_embedding_expressivity(nqubits, embedding):
@@ -423,11 +435,13 @@ def get_embedding_expressivity(nqubits, embedding):
         return nqubits
     
 def find_output_shape(model, sample):
-    sample = torch.Tensor(sample)
+    if not torch.is_tensor(sample):
+        sample = torch.as_tensor(sample, dtype=torch.float32)
 
-    output = torch.flatten(model(sample))
+    with torch.no_grad():
+        output = torch.flatten(model(sample))
+
     return output.shape[0]
-
 
 ######
 def _numpy_math_api():
@@ -463,12 +477,10 @@ def set_simulation_type(sim):
     sim : str
         String that represents the type of simulation. 'tensor' for tensor network simulation and 'statevector' for state vector simulation.
     """
-    try:
-        assert sim == "statevector" or sim == "tensor"
-        cfg._simulation = sim
+    if sim not in {"statevector", "tensor"}:
+        raise ValueError(f'Simulation type must be "statevector" or "tensor". Got "{sim}"')
 
-    except Exception as e:
-        raise ValueError(f"Simulation type must be \"statevector\" or \"tensor\". Got \"{sim}\"")
+    cfg._simulation = sim
     
 
 def get_simulation_type():

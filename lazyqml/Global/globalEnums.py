@@ -31,22 +31,23 @@ class Embedding(BaseEnum):
     DENSE_ANGLE = 7
     HIGHER_ORDER = 8
 
-# Enum for selecting the Models
+# Enum for selecting the Models 
 class Model(BaseEnum):
-    ALL = 1
-    QNN = 2
-    QNN_BAG = 3
-    QSVM = 4
-    FastQSVM = 6
-    QKNN = 5
-    FastQKNN = 7
-    QNN_QNSPSA = 8
+    ALL      = 1
+    QKNN     = 2
+    QNN      = 3
+    QNNBAG   = 4
+    QSVM     = 5
+    FastQKNN = 6
+    FastQSVM = 7
+    MPSQKNN  = 8
+    MPSQNN   = 9
+    MPSQSVM  = 10
 
-class Backend(Enum):
-    defaultQubit = "default.qubit"
-    
-    lightningQubit = "lightning.qubit"
-    lightningGPU = "lightning.gpu"
 
-    defaultTensor = "default.tensor"
+class Backend(BaseEnum):
+    defaultQubit    = "default.qubit"
+    lightningQubit  = "lightning.qubit"
+    lightningGPU    = "lightning.gpu"
+    defaultTensor   = "default.tensor"
     lightningTensor = "lightning.tensor"

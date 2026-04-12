@@ -2,7 +2,7 @@ from lazyqml.GUI._widgets import *
 
 import ipywidgets
 
-# Groups options in boxes
+# Groups options in boxes 
 general_model_options_box = ipywidgets.VBox(
     [
         ipywidgets.Label("General model options"),
@@ -75,7 +75,6 @@ other_options_box = ipywidgets.VBox(
     [
         ipywidgets.Label("Other options"),
         tn_widget,
-        runs_widget,
         randomstate_widget,
         verbose_widget
     ],

@@ -3,8 +3,8 @@ import warnings
 import numpy as np
 from pydantic import BaseModel, Field, field_validator
 from pydantic.config import ConfigDict
-from typing import Callable, Optional, Set
-from typing_extensions import Annotated, Set, List
+from typing import Any, Callable, Optional, Set
+from typing_extensions import Annotated
 from lazyqml.Global.globalEnums import *
 from lazyqml.Utils.Utils import *
 from lazyqml.Utils.Validator import *
@@ -12,55 +12,59 @@ from lazyqml.Dispatchers import Dispatcher
 
 class QuantumClassifier(BaseModel):
     """
-    Main class of lazyqml that serves as an inteface to build and train a wide variety of quantum machine learning models with little setup. It stores model configurations and and functions as a starting point for model fitting.
+    Main public interface of lazyqml. It stores the configuration required to build,
+    train and evaluate one or more quantum machine learning models with minimal setup.
 
     Parameters
     ----------
-    nqubits : set of ints
-        Set of qubits to be used in the circuits of the quantum models
-    randomSate : int, optional (default=1234)
-        This integer is used as a seed for the repeatability of the experiments.
+    nqubits : set[int]
+        Set of qubit counts to be explored. A separate configuration is evaluated for each value.
+    randomstate : int, optional (default=1234)
+        Seed used to make experiments reproducible.
+    predictions : bool, optional (default=False)
+        If True, stores predictions in the dispatched experiments when supported.
     ignoreWarnings : bool, optional (default=True)
-        When set to True, the warning related to algorithms that are not able to run are ignored.
+        If True, warnings are suppressed during execution.
     sequential : bool, optional (default=False)
-        If set to True, executes selected models and circuits in a sequential manner. Otherwise, they are executed in parallel.
+        If True, selected models/configurations are executed sequentially. Otherwise, they may be executed in parallel.
     numPredictors : int, optional (default=10)
-        The number of different predictoras that the Quantum Neural Networks with Bagging (QNN_Bag) will use.
+        Number of predictors used by the bagging model (`Model.QNNBAG`).
     numLayers : int, optional (default=5)
-        The number of layers that the QNN models will use.
-    classifiers : set of Model enums, optional (default={Model.ALL})
-        Selects the quantum models to build and train. Possible values are: Model.ALL, Model.QNN, Model.QNN_BAG, Model.QSVM and Model.FastQSVM
-    ansatzs : set of Ansatzs enums, optional (default={Ansatzs.ALL})
-        Selects the ansatzs to build the QNN and QNNBag quantum models. Possible values are: Ansatzs.ALL, Ansatzs.HCZRX, Ansatzs.TREE_TENSOR, Ansatzs.TWO_LOCAL, Ansatzs.HARDWARE_EFFICIENT, Ansatzs.ANNULAR.
-    embeddings : list of strings, optional (default={Embedding.ALL})
-        Selects the embeddings for all available quantum models. Possible values are: Embedding.ALL, Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.ZZ, Embedding.AMP, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER.
-    features : set of floats, optional (default={0.3, 0.5, 0.8})
-        Set of floating point numbers between 0 and 1.0 that indicates the percentage of data features to be used for each predictor in the QNNBag quantum model. For each value, a new QNNBag model will be trained.
-    learningRate : int, optional (default=0.01)
-        The parameter that will be used for the optimization process of all the QNN and QNNBag models in the gradient descent.
+        Number of ansatz layers used by trainable quantum models.
+    classifiers : set[Model], optional (default={Model.ALL})
+        Set of model families to evaluate. Supported values include: `Model.ALL`, `Model.QNN`, `Model.QNNBAG`, `Model.MPSQNN`,
+        `Model.QSVM`, `Model.FastQSVM`, `Model.MPSQSVM`, `Model.QKNN`, `Model.FastQKNN`, `Model.MPSQKNN`, `Model.HybridCNNQNN`.
+    ansatzs : set[Ansatzs], optional (default={Ansatzs.ALL})
+        Set of ansatz families to evaluate for trainable quantum models.
+    embeddings : set[Embedding], optional (default={Embedding.ALL})
+        Set of embeddings to evaluate.
+    learningRate : float, optional (default=0.01)
+        Learning rate used by trainable models.
     epochs : int, optional (default=100)
-        Number of complete passes that will be done over the dataset while fitting the models.
+        Number of training epochs for trainable models.
+    shots : int, optional (default=1)
+        Number of shots used in shot-based execution.
     batchSize : int, optional (default=8)
-        Number of datapoints per batch when training QNN and QNNBag models.
+        Batch size used by trainable models.
     threshold : int, optional (default=16)
-        This parameter partially determines when to use GPU over CPU. If number of qubits surpases this threshold, GPU execution will be prioritized over CPU, but its not guaranteed. Only used for QNN models.
-    maxSamples : float, optional (default=1.0)
-        A floating point number between 0 and 1.0 that indicates the percentage of the dataset that will be used for each predictor in the QNNBag quantum model.
+        Threshold used by the dispatcher to guide execution decisions such as CPU/GPU prioritization when applicable.
+    numSamples : float, optional (default=1.0)
+        Fraction of the dataset used by each predictor in `Model.QNNBAG`.
+    numFeatures : set[float], optional (default={0.3, 0.5, 0.8})
+        Fractions of input features to be used by `Model.QNNBAG`. Each value defines a separate configuration.
     verbose : bool, optional (default=False)
-        If True, shows all training messages during the fitting of the selected models.
-    customMetric : function, optional (default=None)
-        When function is provided, models are evaluated based on the custom evaluation metric provided.
-    customImputerNum : function, optional (default=None)
-        When function is provided, models are imputed based on the custom numeric imputer provided.
-    customImputerCat : function, optional (default=None)
-        When function is provided, models are imputed based on the custom categorical imputer provided.
+        If True, training and execution messages are printed.
+    customMetric : callable, optional (default=None)
+        Custom evaluation metric. It must accept at least two arguments `(y_true, y_pred)` and return a scalar.
+    customImputerNum : object, optional (default=None)
+        Custom preprocessor for numeric features. It must provide callable `fit`, `transform` and `fit_transform` methods.
+    customImputerCat : object, optional (default=None)
+        Custom preprocessor for categorical features. It must provide callable `fit`, `transform` and `fit_transform` methods.
     cores : int, optional (default=-1)
-        Number of cores used for parallel execution. If cores = -1, maximum cores available in CPU will be used.
+        Number of CPU cores used for parallel execution. If `-1`, all available CPU cores are used.
     """
 
-    # FIXME: Estos parametros no se usan
-    # runs : int, optional (default=1)
-    #    The number of training runs that will be done with the Quantum Neural Network (QNN) models.
+    # FIXME: These parameters are not used. 
     # backend : Backend enum (default=Backend.lightningQubit)
     # shots : int, optional (default=1)
         
@@ -82,27 +86,23 @@ class QuantumClassifier(BaseModel):
     learningRate: Annotated[float, Field(gt=0)] = 0.01
     epochs: Annotated[int, Field(gt=0)] = 100
     shots: Annotated[int, Field(gt=0)] = 1
-    runs: Annotated[int, Field(gt=0)] = 1
     batchSize: Annotated[int, Field(gt=0)] = 8
     threshold: Annotated[int, Field(gt=0)] = 16
     numSamples: Annotated[float, Field(gt=0, le=1)] = 1.0
     numFeatures: Annotated[Set[float], Field(min_items=1)] = {0.3, 0.5, 0.8}
     verbose: bool = False
     customMetric: Optional[Callable] = None
-    customImputerNum: Optional[Any] = None
-    customImputerCat: Optional[Any] = None
+    customImputerNum: Optional[Any]  = None
+    customImputerCat: Optional[Any]  = None
     cores: Optional[int] = -1
     _dispatcher: Any = None
 
     @field_validator('nqubits', mode='before')
     def check_nqubits_positive(cls, value):
-        # TODO: Funciona aunque el set no sea de enteros?
         if not isinstance(value, set):
             raise TypeError('nqubits must be a set of integers')
-
         if any(v <= 0 for v in value):
             raise ValueError('Each value in nqubits must be greater than 0')
-
         return value
 
     @field_validator('numFeatures')
@@ -117,14 +117,14 @@ class QuantumClassifier(BaseModel):
             return None  # Allow None as a valid value
 
         # Check the function signature
-        sig = inspect.signature(metric)
+        sig    = inspect.signature(metric)
         params = list(sig.parameters.values())
 
-        if len(params) < 2 or params[0].name != 'y_true' or params[1].name != 'y_pred':
-            raise ValueError(
-                f"Function {metric.__name__} does not have the required signature. "
-                f"Expected first two arguments to be 'y_true' and 'y_pred'."
-            )
+        positional_ok = [p for p in params if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+        has_varargs   = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params)
+
+        if len(positional_ok) < 2 and not has_varargs:
+            raise ValueError(f"Function {metric.__name__} must accept at least two positional arguments.")
 
         # Test the function by passing dummy arguments
         y_true = np.array([0, 1, 1, 0])  # Example ground truth labels
@@ -137,31 +137,38 @@ class QuantumClassifier(BaseModel):
 
         # Ensure the result is a scalar (int or float)
         if not isinstance(result, (int, float)):
-            raise ValueError(
-                f"Function {metric.__name__} returned {result}, which is not a scalar value."
-            )
+            raise ValueError(f"Function {metric.__name__} returned {result}, which is not a scalar value.")
 
         return metric
 
     @field_validator('customImputerCat', 'customImputerNum')
     def check_preprocessor_methods(cls, preprocessor):
+        if preprocessor is None:
+            return None
+
+        required_methods = ('fit', 'transform', 'fit_transform')
+
+        missing = [m for m in required_methods if not callable(getattr(preprocessor, m, None))]
+        if missing:
+            raise ValueError(f"Object {preprocessor.__class__.__name__} is missing required callable methods: {', '.join(missing)}.")
+
+        return preprocessor
+
+    def check_preprocessor_methods_old  (cls, preprocessor):
+        if preprocessor is None:
+            return None
+
         # Check if preprocessor is an instance of a class
         if not isinstance(preprocessor, object):
-            raise ValueError(
-                f"Expected an instance of a class, but got {type(preprocessor).__name__}."
-            )
+            raise ValueError(f"Expected an instance of a class, but got {type(preprocessor).__name__}.")
 
         # Ensure the object has 'fit' and 'transform' methods
         if not (hasattr(preprocessor, 'fit') and hasattr(preprocessor, 'transform')):
-            raise ValueError(
-                f"Object {preprocessor.__class__.__name__} does not have required methods 'fit' and 'transform'."
-            )
+            raise ValueError(f"Object {preprocessor.__class__.__name__} does not have required methods 'fit' and 'transform'.")
 
         # Optionally check if the object has 'fit_transform' method
         if not hasattr(preprocessor, 'fit_transform'):
-            raise ValueError(
-                f"Object {preprocessor.__class__.__name__} does not have 'fit_transform' method."
-            )
+            raise ValueError(f"Object {preprocessor.__class__.__name__} does not have 'fit_transform' method.")
 
         # Create dummy data for testing the preprocessor methods
         X_dummy = np.array([[1, 2], [3, 4], [5, 6]])  # Example dummy data
@@ -180,9 +187,7 @@ class QuantumClassifier(BaseModel):
 
         # Check the type of the transformed result
         if not isinstance(transformed, (np.ndarray, list)):
-            raise ValueError(
-                f"Object {preprocessor.__class__.__name__} returned {type(transformed)} from 'transform', expected np.ndarray or list."
-            )
+            raise ValueError(f"Object {preprocessor.__class__.__name__} returned {type(transformed)} from 'transform', expected np.ndarray or list.")
 
         return preprocessor
 
@@ -202,7 +207,6 @@ class QuantumClassifier(BaseModel):
             embeddings=self.embeddings,
             learningRate=self.learningRate,
             epochs=self.epochs,
-            runs=self.runs,
             numSamples=self.numSamples,
             numFeatures=self.numFeatures,
             customMetric=self.customMetric,
@@ -214,13 +218,14 @@ class QuantumClassifier(BaseModel):
 
 
     def _prepare_execution(self, X, y):
-        warnings.filterwarnings("ignore")
+        if self.ignoreWarnings:
+            warnings.filterwarnings("ignore")
+        else:
+            warnings.filterwarnings("default")
+
         printer.set_verbose(verbose=self.verbose)
         # Validation model to ensure input parameters are DataFrames and sizes match
-        FitParamsValidatorCV(
-            x=X,
-            y=y
-        )
+        FitParamsValidatorCV(x=X, y=y)
         printer.print("Validation successful, fitting the model...")
 
         # Fix seed
@@ -242,20 +247,15 @@ class QuantumClassifier(BaseModel):
             If True, prints the table of results and accuracies in the terminal.
         """
 
+        if not (0 < test_size < 1):
+            raise ValueError("test_size must be in the interval (0, 1).")
+
         self._prepare_execution(X, y)
 
-        scores = self._dispatcher.dispatch(
-                        X=X,
-                        y=y,
-                        folds=1,
-                        repeats=1,
-                        mode="hold-out",
-                        testsize=test_size,
-                        showTable=showTable
-                    )
+        scores = self._dispatcher.dispatch(X=X, y=y, folds=1, repeats=1, mode="hold-out", testsize=test_size, showTable=showTable)
         
         return scores
-    
+
     def repeated_cross_validation(self, X, y, n_splits=10, n_repeats=5, showTable=True):
         """
         Carries out k-fold cross validation based on n_splits (folds) and n_repeats (repeats). 
@@ -275,14 +275,7 @@ class QuantumClassifier(BaseModel):
         """
         self._prepare_execution(X, y)
 
-        scores = self._dispatcher.dispatch(
-                        X=X,
-                        y=y,
-                        folds=n_splits,
-                        repeats=n_repeats,
-                        mode="cross-validation",
-                        showTable=showTable
-                    )
+        scores = self._dispatcher.dispatch(X=X, y=y, folds=n_splits, repeats=n_repeats, mode="cross-validation", showTable=showTable)
         
         return scores
 
@@ -305,17 +298,9 @@ class QuantumClassifier(BaseModel):
         """
         self._prepare_execution(X, y)
 
-        scores = self._dispatcher.dispatch(
-                        X=X,
-                        y=y,
-                        folds=len(X),
-                        repeats=1,
-                        mode="leave-one-out",
-                        showTable=showTable
-                    )
+        scores = self._dispatcher.dispatch(X=X, y=y, folds=len(X), repeats=1, mode="leave-one-out", showTable=showTable)
 
-        # No funcionaria porque hay que poner el modo dentro del dispatch
-        # self.repeated_cross_validation(X, y, len(X), 1, showTable)
+        # self.repeated_cross_validation(X, y, len(X), 1, showTable) wouldn’t work because the mode has to be set inside the dispatch.
 
         return scores
     

@@ -61,7 +61,7 @@ pip install git+https://github.com/QHPC-SP-Research-Lab/LazyQML
 ```python 
 from sklearn.datasets import load_iris
 from lazyqml          import QuantumClassifier
-from lazyqml.Global   import Embedding, Ansatzs, Model
+from lazyqml.Global  import Embedding, Ansatzs, Model
 
 # Load data
 data = load_iris()

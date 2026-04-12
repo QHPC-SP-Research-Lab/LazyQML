@@ -1,11 +1,9 @@
-# from .CustomEmbedding import ZZEmbedding, _DenseAngleEmbedding
-
-from .ZZ import ZZEmbedding
-from .DenseAngle import DenseAngleEmbedding
-from .HigherOrder import HigherOrderEmbedding
+from .AngleMPS       import AngleEmbeddingMPS 
+from .DenseAngle     import DenseAngleEmbedding
+from .DenseAngleMPS  import DenseAngleEmbeddingMPS
+from .HigherOrder    import HigherOrderEmbedding
 from .HigherOrderMPS import HigherOrderEmbeddingMPS
-from .DenseAngleMPS import DenseAngleEmbeddingMPS
-from .ZZMPS import ZZEmbeddingMPS
-from .AngleMPS import AngleEmbeddingMPS
+from .ZZ             import ZZEmbedding
+from .ZZMPS          import ZZEmbeddingMPS
 
-__all__ = ['ZZEmbedding', 'DenseAngleEmbedding', 'HigherOrderEmbedding', 'HigherOrderEmbeddingMPS', 'DenseAngleEmbeddingMPS', 'ZZEmbeddingMPS', 'AngleEmbeddingMPS']
+__all__ = ['AngleEmbeddingMPS', 'DenseAngleEmbedding', 'DenseAngleEmbeddingMPS', 'HigherOrderEmbedding', 'HigherOrderEmbeddingMPS', 'ZZEmbedding', 'ZZEmbeddingMPS']

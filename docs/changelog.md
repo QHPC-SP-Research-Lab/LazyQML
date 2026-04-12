@@ -6,6 +6,6 @@
 
 -   TBD
 
-**New Features**:
+**New Features**: 
 
 -   TBD

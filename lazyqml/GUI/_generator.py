@@ -45,7 +45,6 @@ def generate_code(button):
     features = nfeatures_widget.value
 
     # Other options
-    runs = runs_widget.value
     seed = randomstate_widget.value
     verbose = verbose_widget.value
     sim = tn_widget.value
@@ -119,12 +118,11 @@ def generate_code(button):
             "features": features,
         }
 
-    # Rest of the parameters
+    # Rest of the parameters 
     classifier_params = {
         **classifier_params,
         "epochs": epochs,
         "randomstate": seed,
-        "runs": runs,
         "verbose": verbose
     }
 

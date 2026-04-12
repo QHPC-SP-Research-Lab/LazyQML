@@ -4,7 +4,7 @@ import pennylane as qml
 class Annular(Ansatz):
     def getCircuit(self):
         def annular(theta, wires):
-            """Implements an annular ansatz circuit.
+            """Implements an annular ansatz circuit. 
 
             Args:
                 theta (array[float]): array of parameters for the ansatz circuit

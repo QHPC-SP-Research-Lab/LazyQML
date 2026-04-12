@@ -3,7 +3,6 @@ from itertools import combinations
 
 
 class ZZEmbeddingMPS():
-
     def __init__(self, nqubits):
         self.nqubits = nqubits
 
@@ -31,7 +30,9 @@ class ZZEmbeddingMPS():
             circuit.apply_gate("RZ", 2.0 * features[i], i)
 
         # ---- ZZ interactions ----
-        for q0, q1 in combinations(range(nload), 2):
+        #for q0, q1 in combinations(range(nload), 2): -> this is all to all, slow 
+        for q0 in range(nload - 1): # -> this all to next
+            q1 = q0 + 1     # only for all to next. For all to all must be erased
             circuit.apply_gate("CZ", q0, q1)
             angle = 2.0 * (np.pi - features[q0]) * (np.pi - features[q1])
             circuit.apply_gate("RZ", angle, q1)

@@ -1,4 +1,4 @@
-# Importing from
+# Importing from 
 from lazyqml.Interfaces.iPreprocessing import Preprocessing
 from sklearn.decomposition import PCA
 
@@ -9,15 +9,15 @@ class PCAHelper(Preprocessing):
         self.fitted = False
         self.preprocessing = PCA(n_components=self.ncomponents)
 
-    def fit(self, X, y):
+    def fit(self, X, y=None):
         if self.ncomponents <= X.shape[1]:
             self.fitted = True
-            fitted_X = self.preprocessing.fit(X, y)
+            self.preprocessing.fit(X, y)
         else:
-            fitted_X = X
-        return fitted_X
+            self.fitted = False
+        return self
 
-    def fit_transform(self, X, y):
+    def fit_transform(self, X, y=None):
         if self.ncomponents <= X.shape[1]:
             self.fitted = True
             fitted_X = self.preprocessing.fit_transform(X, y)

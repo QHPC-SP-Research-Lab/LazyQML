@@ -14,7 +14,7 @@ If you don't have [pip](https://pip.pypa.io) installed, this [Python installatio
 
 ## From sources
 
-To install lazyqml from sources, run this command in your terminal:
+To install lazyqml from sources, run this command in your terminal: 
 
 ```
 pip install git+https://github.com/QHPC-SP-Research-Lab/LazyQML.git

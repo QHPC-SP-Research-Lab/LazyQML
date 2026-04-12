@@ -1,1 +1,1 @@
-"""Unit test package for lazyqml."""
+"""Unit test package for lazyqml"""

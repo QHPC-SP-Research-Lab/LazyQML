@@ -21,23 +21,16 @@ def import_data(random_state):
 class TestQSVM(unittest.TestCase):
     def test_basic_exec(self):
         from lazyqml import QuantumClassifier
-        from lazyqml.Global import Embedding, Model, Ansatzs
-        from lazyqml.Utils import set_simulation_type, get_max_bond_dim, set_max_bond_dim
-
-        set_simulation_type("statevector")
-        set_max_bond_dim(1)
-        # print(get_max_bond_dim())
+        from lazyqml.Global import Embedding, Model
 
         random_state = 0
         X, y = import_data(random_state)
 
         nqubits = {7}
         embeddings = {Embedding.RX}
-        ansatz = {Ansatzs.TWO_LOCAL}
-        models = {Model.QNN}
+        models = {Model.QSVM}
         verbose = True
         sequential = False
-        # cores = 64
 
         # It doesn’t matter
         epochs = 2
@@ -46,28 +39,24 @@ class TestQSVM(unittest.TestCase):
         qc = QuantumClassifier(
             nqubits=nqubits,
             embeddings=embeddings,
-            ansatzs=ansatz,
             classifiers=models,
             verbose=verbose,
             sequential=sequential,
             epochs=epochs,
             batchSize=batch_size,
-            random_state=random_state,
+            randomstate=random_state,
             threshold=59)
         
         # if cores > 1: qc.repeated_cross_validation(X,y,n_splits=splits,n_repeats=repeats)
         # else: qc.fit(X, y)
-        # qc.repeated_cross_validation(X,y,n_splits=splits,n_repeats=repeats)
+        # qc.repeated_cross_validation(X,y,n_splits=splits,n_repeats=repeats) 
         qc.fit(X, y)
 
 class TestFastQSVM(unittest.TestCase):
-    def _test_basic_exec(self):
+    @unittest.skip("disabled for now")
+    def test_basic_exec(self):
         from lazyqml import QuantumClassifier
         from lazyqml.Global import Embedding, Model
-        from lazyqml.Utils import set_simulation_type, get_max_bond_dim
-
-        # set_simulation_type("tensor")
-        # print(get_max_bond_dim())
 
         random_state = 0
         X, y = import_data(random_state)
@@ -91,7 +80,7 @@ class TestFastQSVM(unittest.TestCase):
             sequential=sequential,
             epochs=epochs,
             batchSize=batch_size,
-            random_state=random_state)
+            randomstate=random_state)
         
         # if cores > 1: qc.repeated_cross_validation(X,y,n_splits=splits,n_repeats=repeats)
         # else: qc.fit(X, y)
@@ -99,13 +88,10 @@ class TestFastQSVM(unittest.TestCase):
         qc.fit(X, y)
 
 class TestQNN(unittest.TestCase):
-    def _test_basic_exec(self):
+    @unittest.skip("disabled for now")
+    def test_basic_exec(self):
         from lazyqml import QuantumClassifier
         from lazyqml.Global import Embedding, Ansatzs, Model
-        from lazyqml.Utils import set_simulation_type, get_max_bond_dim
-
-        # set_simulation_type("tensor")
-        # print(get_max_bond_dim())
 
         random_state = 0
         X, y = import_data(random_state)
@@ -136,7 +122,7 @@ class TestQNN(unittest.TestCase):
             sequential=sequential,
             epochs=epochs,
             batchSize=batch_size,
-            random_state=random_state)
+            randomstate=random_state)
         
         # if cores > 1: qc.repeated_cross_validation(X,y,n_splits=splits,n_repeats=repeats)
         # else: qc.fit(X, y)

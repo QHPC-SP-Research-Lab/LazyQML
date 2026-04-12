@@ -1,7 +1,7 @@
 from lazyqml.GUI._widgets import *
 from lazyqml.GUI._generator import generate_code, save2file
 
-# Enable/disable widgets depending on CV/bagging options
+# Enable/disable widgets depending on CV/bagging options 
 def on_change_cv(change):
     splits_widget.disabled = not change['new']
     repeats_widget.disabled = not change['new']

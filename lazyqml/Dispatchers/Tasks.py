@@ -1,28 +1,35 @@
 from dataclasses import dataclass
-from typing import Union
+from typing import Any, Optional, Dict
 
-from lazyqml.Global import Model, Embedding, Ansatzs
+from dataclasses import dataclass
+from typing import Any, Optional, Dict
 
 @dataclass
 class QMLTask:
+    # --- identifiers --- 
     id: int
-    model_memory: float
-    model: any
-    nqubits: int
-    
-    X_train: any
-    X_test: any
-    y_train: any
-    y_test: any
 
-    custom_metric: any
-    model_params: dict = None
+    # --- model ---
+    model: Any
+    model_memory: float
+    nqubits: int
+    model_params: Optional[Dict] = None
+
+    # --- data ---
+    X_train: Any = None
+    X_test:  Any = None
+    y_train: Any = None
+    y_test:  Any = None
+
+    # --- evaluation ---
+    custom_metric: Any = None
 
     def get_model_params(self):
-        pass
+        return self.model_params
 
     def get_data(self):
         return (self.X_train, self.y_train, self.X_test, self.y_test)
+
     
     def get_task_params(self):
         # print((self.model_params, *self.get_data(), self.custom_metric))

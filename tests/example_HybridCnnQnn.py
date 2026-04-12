@@ -1,31 +1,35 @@
-# ---------------------------------------------------------
-# Tests for lazyqml package using acoustic features + QNN
-# ---------------------------------------------------------
+# ----------------------------------------------------
+# Example: acoustic features + HybridCNNQNN
+# ----------------------------------------------------
 
 import argparse
 from pathlib import Path
 import numpy as np
+import torch
 
 from sklearn.metrics import f1_score, accuracy_score, balanced_accuracy_score
 
-from lazyqml.Preprocessing import AcousticFeatures, PCAHelper
-from lazyqml.Models.QNN import QNN
+from lazyqml.Preprocessing import MelSpectrogram
+from lazyqml.Models import HybridCNNQNN
 from lazyqml.Global.globalEnums import Ansatzs, Embedding
+
+np.random.seed(1234)
+torch.manual_seed(1234)
 
 # --------------------------------------------------
 # I/O
 # --------------------------------------------------
 def collect_wavs_by_class(data_root: Path):
-    # Espera una estructura: data_root/ -> clase_0/ -> a.wav
-    # Retorna clase_x: [Path(...), Path(...)],
+    # Input: data_root/ -> clase_0/ -> a.wav 
+    # Return clase_x: [Path(...), Path(...)],
 
     classes = {}
 
     if not data_root.exists():
-        raise FileNotFoundError(f"No existe la carpeta: {data_root}")
+        raise FileNotFoundError(f"The folder does not exist: {data_root}")
 
     if not data_root.is_dir():
-        raise NotADirectoryError(f"No es una carpeta: {data_root}")
+        raise NotADirectoryError(f"The path is not a directory: {data_root}")
 
     for subdir in sorted(data_root.iterdir()):
         if subdir.is_dir():
@@ -34,13 +38,11 @@ def collect_wavs_by_class(data_root: Path):
                 classes[subdir.name] = wavs
 
     if not classes:
-        raise ValueError(f"No se encontraron subcarpetas con archivos .wav en {data_root}")
+        raise ValueError(f"No subdirectories with .wav files were found in {data_root}")
     return classes
 
 
 def flatten_labeled_wavs(classes_dict):
-    # Convierte el diccionario por clase en una lista de tuplas: [(wav_path, label_int, class_name), ...]
-
     items = []
     class_names = sorted(classes_dict.keys())
     class_to_idx = {name: idx for idx, name in enumerate(class_names)}
@@ -53,8 +55,8 @@ def flatten_labeled_wavs(classes_dict):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Ejemplo uso acustic_features + QNN con lazyqml.")
-    ap.add_argument("--data_root", type=str, required=True, help="Carpeta con subcarpetas por clase (cada una con .wav).")
+    ap = argparse.ArgumentParser(description="Example of: acoustic_features + QNN with lazyqml.")
+    ap.add_argument("--data_root", type=str, required=True, help="Folder with subdirectories per class (each containing .wav files).")
 
     args = ap.parse_args()
 
@@ -68,23 +70,24 @@ def main():
     # --------------------------------------------------
     # 1. Extract acoustic features
     # --------------------------------------------------
-    extractor = AcousticFeatures(sr=4000, duration=2.0, n_mfcc=20, n_mels=32)
-    X         = extractor.fit_transform(wav_files)
+    ext = MelSpectrogram(sr=8000, duration=2.0, n_mels=64, n_fft=256, hop_length=128)
+    X   = ext.fit_transform(wav_files)
 
     nqubits = 8
-    pca = PCAHelper(nqubits=nqubits, ncomponents=nqubits)
-    X_red = pca.fit_transform(X, y)
-
     # --------------------------------------------------
-    # 2. Train QNN
+    # 2. Train HybridCNNQNN
     # --------------------------------------------------
-    model = QNN(nqubits=nqubits, ansatz=Ansatzs.HARDWARE_EFFICIENT, embedding=Embedding.RY, n_class=n_classes, layers=2, epochs=10, shots=0, lr=0.01, batch_size=4, backend="lightning.qubit")
-    model.fit(X_red, y)
+    model = HybridCNNQNN(input_shape=X.shape[1:], nqubits=nqubits, ansatz=Ansatzs.HARDWARE_EFFICIENT, embedding=Embedding.RY, n_class=n_classes,
+        layers=2, epochs=10, shots=0, lr=0.01, batch_size=4, backend="lightning.qubit") 
+    model.fit(X, y)
 
     # --------------------------------------------------
     # 3. Predict
     # --------------------------------------------------
-    preds = model.predict(X_red)
+    preds = model.predict(X)
+
+    assert len(preds) == len(y)
+    assert np.all(np.isfinite(preds))
 
     accuracy   = accuracy_score(y, preds)
     b_accuracy = balanced_accuracy_score(y, preds)

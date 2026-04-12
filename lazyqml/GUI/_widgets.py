@@ -47,16 +47,6 @@ randomstate_widget = ipywidgets.IntText(
     continuous_update=False
 )
 
-runs_widget = ipywidgets.IntText(
-    min=1,
-    max=10, 
-    step=1, 
-    value=1, 
-    description="Runs",
-    indent=False,
-    continuous_update=False
-)
-
 dataset_widget = ipywidgets.Dropdown(
     options=['Iris', 'Breast Cancer', 'Wine'],
     value='Iris',
@@ -64,7 +54,7 @@ dataset_widget = ipywidgets.Dropdown(
     disabled=False,
 )
 
-# Cross validation options
+# Cross validation options 
 cv_checkbox = ipywidgets.Checkbox(
     **cb_default_parameters,
     description='Use k-fold cross-validation',
@@ -230,7 +220,6 @@ all_widgets = [
     layers_widget,
     nqubits_widget,
     randomstate_widget,
-    runs_widget,
     dataset_widget,
     cv_checkbox,
     splits_widget,

@@ -1,14 +1,17 @@
-from .Utils import get_max_bond_dim, get_simulation_type, set_max_bond_dim, set_simulation_type
-from .Utils import printer
-from .Utils import adjustQubits
-from .Utils import calculate_quantum_memory, calculate_free_memory, calculate_free_video_memory, calculate_min_memory_FastQSVM
-from .Utils import gpu_can_run_my_jobs
-from .Utils import generate_cv_indices
-from .Utils import create_combinations
-from .Utils import fixSeed
-from .Utils import get_train_test_split, dataProcessing
-from .Utils import get_embedding_expressivity, find_output_shape
-from .Utils import _numpy_math_api
+from .Utils import (
+    get_max_bond_dim, get_simulation_type, set_max_bond_dim, set_simulation_type,
+    printer,
+    adjustQubits,
+    calculate_quantum_memory, calculate_free_memory, calculate_free_video_memory,
+    calculate_min_memory_Fast, calculate_quantum_memory_Fast,
+    gpu_can_run_my_jobs,
+    generate_cv_indices,
+    create_combinations,
+    fixSeed,
+    get_train_test_split, dataProcessing,
+    get_embedding_expressivity, find_output_shape,
+    _numpy_math_api
+)
 
 __all__ = [
     'printer', 
@@ -20,13 +23,16 @@ __all__ = [
     'calculate_quantum_memory',
     'calculate_free_memory',
     'calculate_free_video_memory',
+    'calculate_min_memory_FastQSVM',
+    'calculate_quantum_memory_FastQSVM',
     'create_combinations',
     'generate_cv_indices',
-    'create_combinations',
     'fixSeed',
     'get_train_test_split',
     'dataProcessing',
     'get_embedding_expressivity',
     'find_output_shape',
-    "_numpy_math_api"
+    '_numpy_math_api',
+    'gpu_can_run_my_jobs'
 ]
+ 

@@ -2,13 +2,12 @@ import numpy as np
 
 
 class DenseAngleEmbeddingMPS():
-
     def __init__(self, nqubits):
         self.nqubits = nqubits
 
     def __call__(self, circuit, features):
         """
-        Apply dense angle embedding with zero padding.
+        Apply dense angle embedding with zero padding. 
 
         Expected feature layout:
             first nqubits     -> RY angles

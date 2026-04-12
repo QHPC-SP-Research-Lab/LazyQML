@@ -2,17 +2,16 @@ import numpy as np
 import pandas as pd
 
 from pydantic import BaseModel, ConfigDict, field_validator 
-from typing import Any
 
 class FitParamsValidator(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)  # Allow arbitrary types like DataFrame and ndarray
 
     train_x: pd.DataFrame | np.ndarray
     train_y: pd.DataFrame | np.ndarray
-    test_x: pd.DataFrame | np.ndarray
-    test_y: pd.DataFrame | np.ndarray
+    test_x:  pd.DataFrame | np.ndarray
+    test_y:  pd.DataFrame | np.ndarray
 
-    # Static method to check matching sizes
+    # Static method to check matching sizes 
     @staticmethod
     def _check_size(arr1, arr2, name1: str, name2: str):
         # Check size compatibility for both pandas DataFrame and numpy ndarray

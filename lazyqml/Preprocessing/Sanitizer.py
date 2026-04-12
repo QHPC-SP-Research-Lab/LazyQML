@@ -1,13 +1,12 @@
-# Importing from
+# Importing from 
 from lazyqml.Interfaces.iPreprocessing import Preprocessing
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import make_column_selector as selector
-from sklearn.preprocessing   import MinMaxScaler, RobustScaler
+#from sklearn.preprocessing   import MinMaxScaler, RobustScaler
 
-import numpy as np
 
 class Sanitizer(Preprocessing):
     def __init__(self, imputerCat, imputerNum):
@@ -20,7 +19,7 @@ class Sanitizer(Preprocessing):
         num_steps = [("imputer", imputerNum)] + scalers
 
         self.categorical_transformer = Pipeline(steps=cat_steps)
-        self.numeric_transformer = Pipeline(steps=num_steps)
+        self.numeric_transformer     = Pipeline(steps=num_steps)
 
         self.preprocessor = ColumnTransformer(
             transformers=[
@@ -33,7 +32,8 @@ class Sanitizer(Preprocessing):
         return self.preprocessor.fit(X)
 
     def fit_transform(self, X):
-        return self.preprocessor.fit_transform(X)
+        self.preprocessor.fit(X)
+        return self
 
     def transform(self, X):
         return self.preprocessor.transform(X)

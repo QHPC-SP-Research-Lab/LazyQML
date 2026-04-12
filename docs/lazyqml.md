@@ -26,9 +26,9 @@
 #### Set-Based Configuration Parameters:
 - **`classifiers`**: `Set[Model]`
   - Description: Set of classifier models.
-  - Constraints: Must contain at least one classifier.
+  - Constraints: Must contain at least one classifier. 
   - Default: `{Model.ALL}`
-  - Options: `{Model.QNN, Model.QSVM, Model.FastQSVM, Model.QNN_BAG, Model.QKNN}`
+  - Options: `{Model.QNN, Model.QNNBAG, Model.MPSQNN, Model.QSVM, Model.FastQSVM, Model.MPSQSVM, Model.QKNN, Model.FastQKNN, Model.MPSQKNN}`
 
 - **`ansatzs`**: `Set[Ansatzs]`
   - Description: Set of quantum ansatz configurations.

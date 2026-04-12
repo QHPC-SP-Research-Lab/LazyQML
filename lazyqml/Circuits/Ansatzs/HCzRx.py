@@ -4,7 +4,7 @@ import pennylane as qml
 class HCzRx(Ansatz):
     def getCircuit(self):
         def HCzRx(theta, wires):
-            """Implements an ansatz circuit composed of Hadamard, CZ, and RX gates.
+            """Implements an ansatz circuit composed of Hadamard, CZ, and RX gates. 
 
             Args:
                 theta (array[float]): array of parameters for the ansatz circuit

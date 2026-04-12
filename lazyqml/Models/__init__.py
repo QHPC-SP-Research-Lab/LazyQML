@@ -1,7 +1,6 @@
-from .QKNN   import QKNN, FastQKNN, FastQKNN_MPS
-from .QNN    import QNN, QNNBag, QNN_SPSA
-from .QSVM   import QSVM, FastQSVM, FastQSVM_MPS
-from .BaseHybridModel import BaseHybridQNNModel, BasicHybridModel
-from .HybridCNNQNN import HybridCNNQNN
+from .HybridCNNQNN    import HybridCNNQNN 
+from .QKNN            import QKNN, FastQKNN, MPSQKNN
+from .QNN             import QNN, QNNBag, MPSQNN
+from .QSVM            import QSVM, FastQSVM, MPSQSVM
 
-__all__ = ['QNN', 'QNNBag', 'QNN_SPSA' 'QSVM', 'FastQSVM', 'FastQSVM_MPS','QKNN', 'FastQKNN', 'FastQKNN_MPS', 'BaseHybridQNNModel', 'BasicHybridModel']
+__all__ = ['HybridCNNQNN', 'QKNN', 'FastQKNN', 'MPSQKNN', 'QNN', 'QNNBag', 'MPSQNN', 'QSVM', 'FastQSVM', 'MPSQSVM']

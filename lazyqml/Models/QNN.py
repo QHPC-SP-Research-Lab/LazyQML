@@ -1,4 +1,4 @@
-import warnings
+#import warnings 
 from time import time
 
 import numpy as np
@@ -14,6 +14,8 @@ from lazyqml.Interfaces.iCircuit import Circuit
 from lazyqml.Interfaces.iModel import Model
 from lazyqml.Utils import printer
 from lazyqml.Utils.Utils import get_max_bond_dim, get_simulation_type
+
+#warnings.filterwarnings("ignore")
 
 class QNN(Model):
     def __init__(
@@ -32,6 +34,7 @@ class QNN(Model):
         diff_method  = "best",
         seed         = 1234,
     ):
+        super().__init__()
         torch.manual_seed(seed)
         np.random.seed(seed)
 
@@ -39,17 +42,21 @@ class QNN(Model):
         self.ansatz       = ansatz
         self.embedding    = embedding
         self.n_class      = n_class
+        if self.n_class < 2:
+            raise ValueError("n_class must be at least 2.")
+        if self.n_class > self.nqubits:
+            raise ValueError(f"n_class={self.n_class} cannot exceed nqubits={self.nqubits}.")
         self.layers       = layers
         self.epochs       = epochs
         self.lr           = lr
         self.batch_size   = batch_size
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer.")        
         self.torch_device = torch_device
         self.backend      = backend
         self.diff_method  = diff_method
         self.shots        = shots
         self.circuit_factory = CircuitFactory(nqubits, layers)
-
-        warnings.filterwarnings("ignore")
 
         self._build_device()
         self._build_qnode()
@@ -63,24 +70,13 @@ class QNN(Model):
         return self._n_params
 
     def _build_device(self):
-        # Create device
         if get_simulation_type() == "tensor":
-            if self.backend != Backend.lightningTensor:
-                device_kwargs = {
-                    "max_bond_dim": get_max_bond_dim(),
-                    "cutoff": np.finfo(np.complex128).eps,
-                    # "contract": "auto-mps",
-                }
-            else:
-                device_kwargs = {
-                    "max_bond_dim": get_max_bond_dim(),
-                    "cutoff": 1e-10,
-                    "cutoff_mode": "abs",
-                }
-            
-            self.dev = qml.device(self.backend, wires=self.nqubits, method='mps', **device_kwargs)
-        else:
-            self.dev = qml.device(self.backend, wires=self.nqubits)
+            raise ValueError("QNN does not support tensor-network simulation. Use MPSQNN for tensor-based backends.")
+
+        backend_name = self.backend.value if isinstance(self.backend, Backend) else self.backend
+        shots = None if self.shots in (None, 0) else self.shots
+
+        self.dev = qml.device(backend_name, wires=self.nqubits, shots=shots)
 
     def _build_qnode(self):
         wires = range(self.nqubits)
@@ -122,6 +118,12 @@ class QNN(Model):
         return y
 
     def fit(self, X, y):
+        if len(X) == 0:
+            raise ValueError("Training data is empty.")
+
+        if len(X) != len(y):
+            raise ValueError(f"Expected one target label per input sample, but got {len(X)} samples and {len(y)} labels.")
+
         X_train = torch.tensor(X, dtype=torch.float32).to(self.torch_device)
         y_train = torch.tensor(y, dtype=torch.float32 if self.n_class == 2 else torch.long).to(self.torch_device)
 
@@ -132,7 +134,7 @@ class QNN(Model):
         self.opt    = torch.optim.Adam([self.params], lr=self.lr)
 
         ds          = torch.utils.data.TensorDataset(X_train, y_train)
-        data_loader = torch.utils.data.DataLoader(ds, batch_size=self.batch_size, shuffle=True, drop_last=True)
+        data_loader = torch.utils.data.DataLoader(ds, batch_size=self.batch_size, shuffle=True, drop_last=False)
 
         for _epoch in range(self.epochs):
             for batch_X, batch_y in data_loader:
@@ -144,10 +146,16 @@ class QNN(Model):
         self.params = self.params.detach()
 
     def predict(self, X):
+        if self.params is None:
+            raise ValueError("Model has not been fitted. Call fit() before predict().")
+
+        if len(X) == 0:
+            raise ValueError("Prediction data is empty.")
+
         X_test = torch.tensor(X, dtype=torch.float32).to(self.torch_device)
 
         preds_all = []
-        bs        = max(1, self.batch_size)
+        bs        = self.batch_size
         with torch.inference_mode():
             for i in range(0, X_test.shape[0], bs):
                 preds_all.append(self.forward(X_test[i:i + bs]))
@@ -168,23 +176,44 @@ class QNNBag(Model):
         self.shots = shots
         self.embedding = embedding
         self.n_class = n_class
+        if self.n_class < 2:
+            raise ValueError("n_class must be at least 2.")
+        if self.n_class > self.nqubits:
+            raise ValueError(f"n_class={self.n_class} cannot exceed nqubits={self.nqubits}.")
+
         self.layers = layers
         self.epochs = epochs
         self.lr = lr
-        self.diff_method = diff_method
+        self.diff_method = diff_method or "best"
+
         self.batch_size = batch_size
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer.")
+
         self.n_samples = n_samples
+        if not (0 < self.n_samples <= 1):
+            raise ValueError("n_samples must be in the interval (0, 1].")
+
         self.n_features = n_features
+        if not (0 < self.n_features <= 1):
+            raise ValueError("n_features must be in the interval (0, 1].")
+        
         self.n_estimators = n_estimators
+        if self.n_estimators <= 0:
+            raise ValueError("n_estimators must be a positive integer.")
+
         self.backend = backend
-        self.deviceQ = qml.device(backend.value, wires=self.nqubits)
+        backend_name = backend.value if isinstance(backend, Backend) else backend
+
+        shots = None if self.shots in (None, 0) else self.shots
+        self.deviceQ = qml.device(backend_name, wires=self.nqubits, shots=shots)
         self.device = None
-        self.params_per_layer = None
         self.circuit_factory = CircuitFactory(self.nqubits, nlayers=layers)
         self.qnn = None
         self.params = None
+        self.estimator_params = None
+        self.random_estimator_features = None
         self._build_circuit()
-        warnings.filterwarnings("ignore")
         # Initialize loss function based on the number of classes
         if self.n_class == 2:
             self.criterion = torch.nn.BCEWithLogitsLoss()
@@ -197,7 +226,7 @@ class QNNBag(Model):
         embedding: Circuit = self.circuit_factory.GetEmbeddingCircuit(self.embedding)
 
         # Define the quantum circuit as a PennyLane qnode
-        @qml.qnode(self.deviceQ, interface='torch', diff_method='best')
+        @qml.qnode(self.deviceQ, interface='torch', diff_method=self.diff_method)
         def circuit(x, theta):
             # Apply embedding and ansatz circuits
             embedding(x, wires=range(self.nqubits))
@@ -220,13 +249,30 @@ class QNNBag(Model):
             return torch.stack(qnn_output).T
 
     def fit(self, X, y):
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() and self.backend == Backend.lightningGPU else "cpu")
+        if len(X) == 0:
+            raise ValueError("Training data is empty.")
+
+        if len(X) != len(y):
+            raise ValueError(f"Expected one target label per input sample, but got {len(X)} samples and {len(y)} labels.") 
+
+        n_total_features = X.shape[1]
+        if n_total_features < self.nqubits:
+            raise ValueError(f"Input data has only {n_total_features} features, but nqubits={self.nqubits}.")
+
+        n_selected_features = max(1, int(self.n_features * n_total_features))
+        if n_selected_features != self.nqubits:
+            raise ValueError(f"QNNBag requires exactly nqubits={self.nqubits} selected features per estimator, but n_features produces {n_selected_features} features from {n_total_features} input features.")
+
+        is_gpu_backend = (self.backend == Backend.lightningGPU if isinstance(self.backend, Backend) else self.backend == Backend.lightningGPU.value)
+       
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() and is_gpu_backend else "cpu")
 
         # Convert training data to torch tensors and transfer to device
         X = torch.tensor(X, dtype=torch.float32).to(self.device)
         y = torch.tensor(y, dtype=torch.float32 if self.n_class == 2 else torch.long).to(self.device)
 
         self.random_estimator_features = []
+        self.estimator_params          = []
 
         for j in range(self.n_estimators):
             # Re-initialize parameters
@@ -234,9 +280,10 @@ class QNNBag(Model):
             self.opt = torch.optim.Adam([self.params], lr=self.lr)
 
             # Select random samples and features for each estimator
-            random_estimator_samples = np.random.choice(a=X.shape[0], size=(int(self.n_samples * X.shape[0]),), replace=False)
-            X_train_est = X[random_estimator_samples, :]
-            y_train_est = y[random_estimator_samples]
+            n_subsamples      = max(1, int(self.n_samples * X.shape[0]))
+            estimator_samples = np.random.choice(a=X.shape[0], size=(n_subsamples,), replace=False)
+            X_train_est       = X[estimator_samples, :]
+            y_train_est       = y[estimator_samples]
 
             random_estimator_features = np.random.choice(a=X_train_est.shape[1], size=max(1, int(self.n_features * X_train_est.shape[1])), replace=False)
             self.random_estimator_features.append(random_estimator_features)
@@ -245,9 +292,7 @@ class QNNBag(Model):
             X_train_est = X_train_est[:, random_estimator_features]
 
             # Create data loader
-            data_loader = torch.utils.data.DataLoader(
-                list(zip(X_train_est, y_train_est)), batch_size=self.batch_size, shuffle=True, drop_last=True
-            )
+            data_loader = torch.utils.data.DataLoader(list(zip(X_train_est, y_train_est)), batch_size=self.batch_size, shuffle=True, drop_last=False)
 
             start_time = time()
 
@@ -264,9 +309,16 @@ class QNNBag(Model):
                     epoch_loss += loss.item()
                 printer.print(f"\t\tEpoch {epoch + 1}/{self.epochs}, Loss: {epoch_loss / len(data_loader):.4f}")
 
+            self.estimator_params.append(self.params.detach().clone())
             printer.print(f"\t\tTraining completed in {time() - start_time:.2f} seconds")
 
     def predict(self, X):
+        if (self.estimator_params is None or self.random_estimator_features is None or len(self.estimator_params) != self.n_estimators or len(self.random_estimator_features) != self.n_estimators):
+            raise ValueError("Model has not been fitted successfully. Call fit() before predict().")
+
+        if len(X) == 0:
+            raise ValueError("Prediction data is empty.")
+
         X_test = torch.tensor(X, dtype=torch.float32).to(self.device)
 
         # Initialize y_predictions with the correct shape
@@ -277,14 +329,13 @@ class QNNBag(Model):
 
         for j in range(self.n_estimators):
             X_test_features = X_test[:, self.random_estimator_features[j]]
-            y_pred = self.forward(X_test_features)
+            qnn_output      = self.qnn(X_test_features, self.estimator_params[j])
             
             # Ensure the shape of y_pred matches the expectations
             if self.n_class == 2:
-                y_pred = y_pred.view(-1, 1)  # shape (batch_size, 1) for binary classification
+                y_pred = qnn_output.view(-1, 1)
             else:
-                # For multi-class, ensure it has the shape (batch_size, n_class)
-                y_pred = y_pred.view(-1, self.n_class)  # shape (batch_size, n_class)
+                y_pred = torch.stack(qnn_output).T 
 
             y_predictions += y_pred  # Now should work without error
 
@@ -293,7 +344,7 @@ class QNNBag(Model):
 
         # For binary classification, use sigmoid to get probabilities
         if self.n_class == 2:
-            return (torch.sigmoid(y_predictions.detach()).cpu().numpy() > 0.5).astype(int)  # Convert to binary predictions
+            return (torch.sigmoid(y_predictions.detach()).view(-1).cpu().numpy() > 0.5).astype(int)  # Convert to binary predictions
         else:
             return torch.argmax(y_predictions.detach(), dim=1).cpu().numpy()  # For multi-class predictions
         
@@ -302,7 +353,7 @@ class QNNBag(Model):
         return self._n_params
     
 
-class QNN_SPSA(Model):
+class MPSQNN(Model):
     def __init__(
         self,
         nqubits,
@@ -317,8 +368,9 @@ class QNN_SPSA(Model):
         torch_device="cpu",
         backend="default.tensor",
         seed=1234,
-        diff_method = 'best'
+        diff_method = None
     ):
+        super().__init__()
         torch.manual_seed(seed)
         np.random.seed(seed)
 
@@ -326,17 +378,23 @@ class QNN_SPSA(Model):
         self.ansatz_name = ansatz
         self.embedding_name = embedding
         self.n_class = n_class
+        if self.n_class < 2:
+            raise ValueError("n_class must be at least 2.")
+        if self.n_class > self.nqubits:
+            raise ValueError(f"n_class={self.n_class} cannot exceed nqubits={self.nqubits}.")
+
         self.layers = layers
         self.epochs = epochs
         self.lr = lr
         self.batch_size = batch_size
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer.")
+
         self.torch_device = torch_device
         self.backend = backend
         self.shots = shots
-
+        self.diff_method = diff_method
         self.circuit_factory = CircuitFactory(nqubits, layers)
-
-        warnings.filterwarnings("ignore")
 
         self._build_device()
         self._build_qnode()
@@ -352,11 +410,9 @@ class QNN_SPSA(Model):
     # Device
     # ============================================================
     def _build_device(self):
-        self.dev = qml.device(
-            self.backend,
-            wires=self.nqubits,
-            method="mps",
-        )
+        shots        = None if self.shots in (None, 0) else self.shots
+        backend_name = self.backend.value if isinstance(self.backend, Backend) else self.backend
+        self.dev     = qml.device(backend_name, wires=self.nqubits, method="mps", shots=shots)
 
     # ============================================================
     # QNode (broadcast-safe)
@@ -365,11 +421,9 @@ class QNN_SPSA(Model):
         wires = list(range(self.nqubits))
 
         ansatz_obj = self.circuit_factory.GetAnsatzCircuit(self.ansatz_name)
-        embedding_fn = self.circuit_factory.GetEmbeddingCircuit(
-            self.embedding_name
-        )
+        embedding_fn = self.circuit_factory.GetEmbeddingCircuit(self.embedding_name)
 
-        @qml.qnode(self.dev, interface="torch", diff_method=None)
+        @qml.qnode(self.dev, interface="torch", diff_method=self.diff_method)
         def circuit(x, params):
             """
             x: (batch, features) or single sample
@@ -402,14 +456,15 @@ class QNN_SPSA(Model):
     # Training using SPSAOptimizer
     # ============================================================
     def fit(self, X, y):
-        X_train = torch.tensor(
-            X, dtype=torch.float32, device=self.torch_device
-        )
-        y_train = torch.tensor(
-            y,
-            dtype=torch.float32 if self.n_class == 2 else torch.long,
-            device=self.torch_device,
-        )
+        if len(X) == 0:
+            raise ValueError("Training data is empty.")
+
+        if len(X) != len(y):
+            raise ValueError(f"Expected one target label per input sample, but got {len(X)} samples and {len(y)} labels.")         
+
+        X_train = torch.tensor(X, dtype=torch.float32, device=self.torch_device)
+        y_train = torch.tensor(y, dtype=torch.float32 if self.n_class == 2 else torch.long, device=self.torch_device)
+
         if self.n_class == 2 and y_train.ndim == 1:
             y_train = y_train.unsqueeze(1)
 
@@ -418,19 +473,20 @@ class QNN_SPSA(Model):
         self.opt = qml.SPSAOptimizer(maxiter=1)
 
         dataset = torch.utils.data.TensorDataset(X_train, y_train)
-        loader = torch.utils.data.DataLoader(
-            dataset,
-            batch_size=self.batch_size,
-            shuffle=True,
-            drop_last=True,
-        )
+        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=False)
 
         for _ in range(self.epochs):
             for batch_X, batch_y in loader:
 
                 def closure(params, **kwargs):
                     preds = self.qnode(batch_X, params)
-                    loss = self.criterion(preds.view(-1, 1), batch_y)
+
+                    if self.n_class == 2:
+                        preds = preds.view(-1, 1)
+                    else:
+                        preds = torch.stack(preds, dim=-1)
+
+                    loss = self.criterion(preds, batch_y)
                     return loss
 
                 # pass stepsize here
@@ -442,9 +498,13 @@ class QNN_SPSA(Model):
     # Prediction
     # ============================================================
     def predict(self, X):
-        X_test = torch.tensor(
-            X, dtype=torch.float32, device=self.torch_device
-        )
+        if self.params is None:
+            raise ValueError("Model has not been fitted. Call fit() before predict().")
+
+        if len(X) == 0:
+            raise ValueError("Prediction data is empty.")
+
+        X_test = torch.tensor(X, dtype=torch.float32, device=self.torch_device)
 
         with torch.inference_mode():
             preds = self.forward(X_test)

@@ -1,3 +1,3 @@
-# common module
+# common module 
 
 ::: lazyqml.lazyqml

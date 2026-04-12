@@ -5,7 +5,7 @@ import numpy as np
 class TwoLocal(Ansatz):
     def getCircuit(self):
         def TwoLocal(theta, wires):
-            """Implements a two-local ansatz circuit.
+            """Implements a two-local ansatz circuit. 
 
             Args:
                 theta (array[float]): array of parameters for the ansatz circuit
