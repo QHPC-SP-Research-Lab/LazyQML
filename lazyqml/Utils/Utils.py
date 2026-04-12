@@ -170,8 +170,8 @@ def calculate_quantum_memory_Fast(nqubits, n, mode, folds, test_size, free_ram_m
 
     # If we can't even store minimal state buffers
     if min_buffers_mib > free_ram_mb:
-    if (MiB_state * overhead * 2) > free_ram_mb:
-        return min_buffers_mib
+        if (MiB_state * overhead * 2) > free_ram_mb:
+            return min_buffers_mib
 
     # Worst-case: full kernel matrix
     n_elems = n_train * n_train
