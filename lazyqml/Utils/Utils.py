@@ -3,7 +3,11 @@ import math
 from itertools import product
 
 # Third-party libraries
-import GPUtil
+try:
+    import GPUtil
+except ImportError:
+    GPUtil = None
+
 import numpy as np
 import pandas as pd
 import psutil
@@ -101,6 +105,8 @@ def calculate_free_video_memory(verbose=False):
     """
     Calculates the amount of free Video Memory.
     """
+    if GPUtil is None:
+        return 0
     try:
         gpus = GPUtil.getGPUs()
         if not gpus:
@@ -188,6 +194,8 @@ def calculate_quantum_memory_Fast(nqubits, n, mode, folds, test_size, free_ram_m
 _NVML_INITIALIZED = False
 def gpu_can_run_my_jobs(verbose=False):
     global _NVML_INITIALIZED
+    if GPUtil is None:
+        return False
     try:
         gpus = GPUtil.getGPUs()
         if not gpus:

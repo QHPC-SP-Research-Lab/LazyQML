@@ -20,3 +20,4 @@ quimb
 ipykernel
 nvidia-ml-py
 librosa
+gputil

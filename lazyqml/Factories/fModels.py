@@ -12,7 +12,7 @@ class ModelFactory:
                 lr=0.01, batch_size=8, epochs=50, seed=1234, backend=Backend.lightningQubit, numPredictors=10, K=5, mem_budget_mb=None):
 
         simulation_type    = get_simulation_type()
-        statevector_models = {Model.QKNN, Model.FastQKNN, Model.QSVM, Model.FastQSVM, Model.QNN, Model.QNN_BAG}
+        statevector_models = {Model.QKNN, Model.FastQKNN, Model.QSVM, Model.FastQSVM, Model.QNN, Model.QNNBAG}
         tensor_models      = {Model.MPSQKNN, Model.MPSQSVM, Model.MPSQNN}
 
         if model in statevector_models and simulation_type != "statevector":
@@ -61,7 +61,7 @@ class ModelFactory:
                     "lr": lr, "batch_size": batch_size, "seed": seed, "torch_device": "cpu", "backend": backend, "diff_method": "best"}
             return QNN(**params)
 
-        if model == Model.QNN_BAG:
+        if model == Model.QNNBAG:
             params = {"nqubits": nqubits, "ansatz": ansatz, "embedding": embedding, "n_class": n_class, "layers": layers, "epochs": epochs, "n_samples": n_samples,
                     "n_features": n_features, "n_estimators": numPredictors, "shots": shots, "diff_method": "best", "lr": lr, "batch_size": batch_size, "seed": seed, "backend": backend}
             return QNNBag(**params)

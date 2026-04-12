@@ -58,7 +58,7 @@ def generate_code(button):
     if qsvm: selected_classifiers.append("Model.QSVM")
     if fast_qsvm: selected_classifiers.append("Model.FastQSVM")
     if qnn: selected_classifiers.append("Model.QNN")
-    if qnn_bag: selected_classifiers.append("Model.QNN_BAG")
+    if qnn_bag: selected_classifiers.append("Model.QNNBAG")
 
     if hczrx: selected_ansatzs.append("Ansatzs.HCZRX")
     if tree_tensor: selected_ansatzs.append("Ansatzs.TREE_TENSOR")

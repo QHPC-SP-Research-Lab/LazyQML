@@ -79,9 +79,9 @@ class QuantumClassifier(BaseModel):
     sequential: bool = False
     numPredictors: Annotated[int, Field(gt=0)] = 10
     numLayers: Annotated[int, Field(gt=0)] = 5
-    classifiers: Annotated[Set[Model], Field(min_items=1)] = {Model.ALL}
-    ansatzs: Annotated[Set[Ansatzs], Field(min_items=1)] = {Ansatzs.ALL}
-    embeddings: Annotated[Set[Embedding], Field(min_items=1)] = {Embedding.ALL}
+    classifiers: Annotated[Set[Model], Field(min_length=1)] = {Model.ALL}
+    ansatzs: Annotated[Set[Ansatzs], Field(min_length=1)] = {Ansatzs.ALL}
+    embeddings: Annotated[Set[Embedding], Field(min_length=1)] = {Embedding.ALL}
     # backend: Backend = Backend.lightningQubit
     learningRate: Annotated[float, Field(gt=0)] = 0.01
     epochs: Annotated[int, Field(gt=0)] = 100
@@ -89,7 +89,7 @@ class QuantumClassifier(BaseModel):
     batchSize: Annotated[int, Field(gt=0)] = 8
     threshold: Annotated[int, Field(gt=0)] = 16
     numSamples: Annotated[float, Field(gt=0, le=1)] = 1.0
-    numFeatures: Annotated[Set[float], Field(min_items=1)] = {0.3, 0.5, 0.8}
+    numFeatures: Annotated[Set[float], Field(min_length=1)] = {0.3, 0.5, 0.8}
     verbose: bool = False
     customMetric: Optional[Callable] = None
     customImputerNum: Optional[Any]  = None
