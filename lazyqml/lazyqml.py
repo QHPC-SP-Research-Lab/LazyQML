@@ -85,7 +85,8 @@ class QuantumClassifier(BaseModel):
     # backend: Backend = Backend.lightningQubit
     learningRate: Annotated[float, Field(gt=0)] = 0.01
     epochs: Annotated[int, Field(gt=0)] = 100
-    shots: Annotated[int, Field(gt=0)] = 1
+    shots: int | None = Field(default=None, gt=0)
+    #shots: Annotated[int, Field(gt=0)] = 1
     batchSize: Annotated[int, Field(gt=0)] = 8
     threshold: Annotated[int, Field(gt=0)] = 16
     numSamples: Annotated[float, Field(gt=0, le=1)] = 1.0

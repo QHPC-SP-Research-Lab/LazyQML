@@ -243,16 +243,16 @@ def gpu_can_run_my_jobs(verbose=False):
 
 def create_combinations(classifiers, embeddings, ansatzs, features, qubits, folds, repeats, n_samples_total, mode, test_size, free_ram_mb):
     classifier_list = []
-    embedding_list = []
-    ansatzs_list = []
+    embedding_list  = []
+    ansatzs_list    = []
 
     # Make sure we don't have duplicated items
-    classifiers = list(classifiers)
-    embeddings = list(embeddings)
-    ansatzs = list(ansatzs)
+    classifiers  = list(classifiers)
+    embeddings   = list(embeddings)
+    ansatzs      = list(ansatzs)
     qubit_values = sorted(list(qubits))
     repeat_range = range(repeats)
-    folds_range = range(folds)
+    folds_range  = range(folds)
     
     cv_size = repeats*folds
 

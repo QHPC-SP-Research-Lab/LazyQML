@@ -102,11 +102,11 @@ class QKNN(Model):
         if self.k > n_train:
             raise ValueError(f"k={self.k} cannot be larger than the number of training samples ({n_train}).")
 
-        printer.print("\t\tTraining the QKNN...")
+        printer.print("\tTraining QKNN...")
         self.q_distances = self._compute_distances(X, X, is_symmetric=True)
         self.KNN = KNeighborsClassifier(n_neighbors=self.k, metric="precomputed")
         self.KNN.fit(self.q_distances, y)
-        printer.print("\t\tQKNN training complete.")
+        printer.print("\tQKNN training complete.")
 
 
     def predict(self, X):
@@ -116,7 +116,9 @@ class QKNN(Model):
         if len(X) == 0:
             raise ValueError("X must contain at least one sample.")
 
+        printer.print("\tTesting QKNN...")
         q_distances = self._compute_distances(X, self.X_train, is_symmetric=False)
+        printer.print("\tQKNN testing complete.")
         return self.KNN.predict(q_distances)
     
     @property
@@ -329,11 +331,10 @@ class FastQKNN(Model):
 
             # Total RAM needed
             MiB_total_need = ((byt_state_need + byt_R_need) * overhead) / (1024 * 1024)
-            printer.print(f'MiB necesarios {MiB_total_need} -Budget_MB {float(self.mem_budget_mb)}')
             a_mode = (MiB_total_need <= float(self.mem_budget_mb))
             
-        #printer.print(a_mode)
         if a_mode:
+            #printer.print(f'MiB necesarios {MiB_total_need}, Budget_MB {float(self.mem_budget_mb)}')
             x_sv = np.empty((n1, dim), dtype=self.state_dtype)
             y_sv = x_sv if is_symmetric else np.empty((n2, dim), dtype=self.state_dtype)
 
@@ -387,11 +388,11 @@ class FastQKNN(Model):
         if self.k > n_train:
             raise ValueError(f"k={self.k} cannot be larger than the number of training samples ({n_train}).")
 
-        printer.print("\t\tTraining the FastQKNN...")
+        printer.print("\tTraining FastQKNN...")
         self.q_distances = self._compute_distances(X, X, is_symmetric=True)
         self.KNN = KNeighborsClassifier(n_neighbors=self.k, metric='precomputed')
         self.KNN.fit(self.q_distances, y)
-        printer.print("\t\tFastQKNN training complete.")
+        printer.print("\tFastQKNN training complete.")
 
 
     def predict(self, X):
@@ -402,7 +403,10 @@ class FastQKNN(Model):
             if len(X) == 0:
                 raise ValueError("X must contain at least one sample.")
 
+            printer.print("\tTesting FastQKNN...")
             q_distances = self._compute_distances(X, self.X_train, is_symmetric=False)
+
+            printer.print("\tFastQKNN testing complete.")
             return self.KNN.predict(q_distances)
         except Exception as e:
             printer.print(f"Error during prediction: {str(e)}")
@@ -469,145 +473,69 @@ class MPSQKNN(Model):
 
             psi_final = psi.psi
             #psi_final.canonicalize(where=0)
-            psi_final = psi_final.normalize()
+            psi_final.normalize()
 
             return psi_final
         return mps
 
 
-    def _mps_overlap_seg(self, X1, X2):
+    def _mps_overlap(self, X1, X2):
         if len(X1) == 0 or len(X2) == 0:
             raise ValueError("X1 and X2 must be non-empty.")
 
         N = len(X1)
         M = len(X2)
-
-        L = getattr(X1[0], "L", None)
-        if L is None:
-            raise ValueError("Input states do not look like quimb MatrixProductState objects.")
-
-        for x in X1:
-            if getattr(x, "L", None) != L:
-                raise ValueError("All states in X1 must have the same number of sites.")
-        for x in X2:
-            if getattr(x, "L", None) != L:
-                raise ValueError("All states in X2 must have the same number of sites.")
 
         K = np.empty((N, M), dtype=self.kernel_dtype)
 
-        same_collection = (X1 is X2)
+        if X1 is X2:
+            for i in range(N):
+                bra_i   = X1[i].H
+                amp     = qtn.expec_TN_1D(bra_i, X2[i])
+                K[i, i] = abs(complex(amp)) ** 2
 
-        with self._threadpool_ctx():
-            if same_collection:
-                for i in range(N):
-                    K[i, i] = 1.0
-                    bra_i = X1[i].H
-                    for j in range(i + 1, N):
-                        amp = qtn.expec_TN_1D(bra_i, X2[j])
-                        val = abs(complex(amp)) ** 2
-                        K[i, j] = val
-                        K[j, i] = val
-            else:
-                for i in range(N):
-                    bra_i = X1[i].H
-                    for j in range(M):
-                        amp = qtn.expec_TN_1D(bra_i, X2[j])
-                        K[i, j] = abs(complex(amp)) ** 2
+                for j in range(i + 1, N):
+                    amp = qtn.expec_TN_1D(bra_i, X2[j])
+                    val = abs(complex(amp)) ** 2
+                    K[i, j] = val
+                    K[j, i] = val
+        else:
+            for i in range(N):
+                bra_i = X1[i].H
+                for j in range(M):
+                    amp = qtn.expec_TN_1D(bra_i, X2[j])
+                    K[i, j] = abs(complex(amp)) ** 2
         return K
 
 
-    def _mps_overlap(self, X1, X2):
-        # Note that it works with convention: tensors have shape (Dl, Dr, d)
+    def _mps_overlap_generico(self, X1, X2):
         if len(X1) == 0 or len(X2) == 0:
             raise ValueError("X1 and X2 must be non-empty.")
 
         N = len(X1)
         M = len(X2)
-        L = len(X1[0].tensors)
 
-        if any(len(x.tensors) != L for x in X1):
-            raise ValueError("All states in X1 must have the same number of tensors.")
-        if any(len(x.tensors) != L for x in X2):
-            raise ValueError("All states in X2 must have the same number of tensors.")
+        K = np.zeros((N, M), dtype=self.state_dtype)
 
-        def get_array(t):
-            arr = t.data if hasattr(t, "data") else t
-            if arr.ndim not in (2, 3):
-                raise ValueError(f"Unexpected tensor ndim={arr.ndim}, expected 2 or 3.")
-            return arr
-
-        def normalize_site_tensor(arr, site):
-            if arr.ndim == 3:
-                #Observed convention: (Dl, Dr, d)
-                return arr
-            if arr.ndim != 2:
-                raise ValueError(f"Unexpected tensor ndim={arr.ndim}, expected 2 or 3.")
-            if site == 0:
-                # Observed shape (1, d) -> (1, 1, d)
-                if arr.shape[0] != 1:
-                    raise ValueError(f"Unexpected left-boundary rank-2 shape at site 0: {arr.shape}")
-                d = arr.shape[1]
-                return arr.reshape(1, 1, d)
-            if site == L - 1:
-                # Observed shape (Dl, d) -> (Dl, 1, d)
-                if arr.shape[0] < 1:
-                    raise ValueError(f"Unexpected right-boundary rank-2 shape at site {site}: {arr.shape}")
-                Dl, d = arr.shape
-                return arr.reshape(Dl, 1, d)
-            raise ValueError(f"Rank-2 tensor found at interior site {site}.")
-
-        env = np.ones((N, M, 1, 1), dtype=self.state_dtype)
-
-        for site in range(L):
-            A_list = [normalize_site_tensor(get_array(x.tensors[site]), site) for x in X1]
-            B_list = [normalize_site_tensor(get_array(x.tensors[site]), site) for x in X2]
-
-            Dl1_max = max(t.shape[0] for t in A_list)
-            Dr1_max = max(t.shape[1] for t in A_list)
-            d1_max  = max(t.shape[2] for t in A_list)
-
-            Dl2_max = max(t.shape[0] for t in B_list)
-            Dr2_max = max(t.shape[1] for t in B_list)
-            d2_max  = max(t.shape[2] for t in B_list)
-
-            if d1_max != d2_max:
-                raise ValueError(f"Physical dimensions do not match at site {site}: {d1_max} vs {d2_max}")
-
-            if env.shape[2] > Dl1_max or env.shape[3] > Dl2_max:
-                raise ValueError(f"Incompatible bond dimensions at site {site}: env has ({env.shape[2]}, {env.shape[3]}) but tensors expect at most ({Dl1_max}, {Dl2_max})")
-
-            d_max = d1_max
-
-            A_batch = np.zeros((N, Dl1_max, Dr1_max, d_max), dtype=self.state_dtype)
-            B_batch = np.zeros((M, Dl2_max, Dr2_max, d_max), dtype=self.state_dtype)
-
-            for i, t in enumerate(A_list):
-                Dl, Dr, d = t.shape
-                A_batch[i, :Dl, :Dr, :d] = t
-
-            for j, t in enumerate(B_list):
-                Dl, Dr, d = t.shape
-                B_batch[j, :Dl, :Dr, :d] = t
-
-            env_padded = np.zeros((N, M, Dl1_max, Dl2_max), dtype=self.state_dtype)
-            env_padded[:, :, :env.shape[2], :env.shape[3]] = env
-
-            # Convention: tensors have shape (Dl, Dr, d)
-            # env'[b, d] = sum_{a, c, s} env[a, c] * conj(A[a, b, s]) * B[c, d, s]
-            with self._threadpool_ctx():
-                env = np.einsum("ijac,iabs,jcds->ijbd", env_padded, A_batch.conj(), B_batch, optimize=True)
-
-        if env.shape[2] != 1 or env.shape[3] != 1:
-            raise ValueError(f"Final environment is not scalar-valued: got shape {env.shape[2:]}")
-        return np.abs(env[:, :, 0, 0]) ** 2
-
+        if X1 is X2:
+            for i in range(N):
+                K[i, i] = abs(X1[i].H @ X2[i]) ** 2
+                for j in range(i + 1, N):
+                    val = abs(X1[i].H @ X2[j]) ** 2
+                    K[i, j] = val
+                    K[j, i] = val
+        else:
+            for i in range(N):
+                for j in range(M):
+                    K[i, j] = abs(X1[i].H @ X2[j]) ** 2
+        return K
 
     def _quantum_kernel(self, X1, X2, is_symmetric: bool = False):
         with self._single_thread_ctx():
             states_2 = [self.kernel_circ(x) for x in X2]
             states_1 = states_2 if is_symmetric else [self.kernel_circ(x) for x in X1]
 
-        K = self._mps_overlap_seg(states_1, states_2)
+        K = self._mps_overlap(states_1, states_2)
 
         if is_symmetric:
             K = 0.5 * (K + K.T)

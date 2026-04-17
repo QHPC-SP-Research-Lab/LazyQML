@@ -151,10 +151,10 @@ class Dispatcher:
                 # Recolectar items para procesar mientras haya recursos disponibles
                 while current_cores < max_cores and not cpu_queue.empty():
                     try:
-                        qmltask = cpu_queue.get_nowait()
+                        qmltask   = cpu_queue.get_nowait()
                         mem_model = qmltask.model_memory
                         #printer.print(f'mem_model: {mem_model} - available_memory {available_memory}')
-                        if (qmltask.model==Model.FastQSVM) and (available_memory < mem_model) and (available_memory > 0):
+                        if (qmltask.model in {Model.FastQSVM, Model.FastQKNN}) and (available_memory < mem_model) and (available_memory > 0):
                             mem_model = max(available_memory, calculate_min_memory_Fast(qmltask.nqubits))
                             qmltask.model_memory = mem_model
                             qmltask.model_params["mem_budget_mb"] = mem_model
@@ -162,13 +162,13 @@ class Dispatcher:
                         # Verificar si hay recursos suficientes
                         with resource_lock:
                             if available_memory >= mem_model and available_cores >= 1:
-                                # printer.print(f"Available Resources - Memory: {available_memory}, Cores: {available_cores}")
+                                #printer.print(f"Available Resources - Memory: {available_memory}, Cores: {available_cores}")
                                 available_memory -= mem_model
                                 available_cores -= 1
                                 current_batch.append(qmltask)
                                 current_cores += 1
                             else:
-                                # printer.print(f"Unavailable Resources - Requirements: {mem_model}, Available: {available_memory}")
+                                #printer.print(f"Unavailable Resources - Requirements: {mem_model}, Available: {available_memory}")
                                 cpu_queue.put(qmltask)
                                 break
 
@@ -188,12 +188,12 @@ class Dispatcher:
 
                     # Liberar recursos después del procesamiento
                     with resource_lock:
-                        # printer.print("Freeing Up Resources")
+                        #printer.print("Freeing Up Resources")
                         for qmltask in current_batch:
                             mem_model = qmltask.model_memory
                             available_memory += mem_model
                             available_cores += 1
-                            # printer.print(f"Freed - Memory: {available_memory}MB, Cores: {available_cores}")
+                            #printer.print(f"Free Memory: {available_memory} MB, Cores: {available_cores}")
 
                 # printer.print("Waiting for next batch")
                 time.sleep(0.1)
@@ -222,8 +222,8 @@ class Dispatcher:
 
         tensor_sim = get_simulation_type() == "tensor"
 
-        RAM = calculate_free_memory()
-        VRAM = calculate_free_video_memory()
+        RAM    = calculate_free_memory()
+        VRAM   = calculate_free_video_memory()
         gpu_ok = gpu_can_run_my_jobs(verbose=False)
 
         """
@@ -323,8 +323,8 @@ class Dispatcher:
                 "numPredictors": self.numPredictors
             }
 
-            if name == Model.FastQSVM:
-                model_factory_params["mem_budget_mb"] = memModel
+            if name in {Model.FastQSVM, Model.FastQKNN}:
+                model_factory_params["mem_budget_mb"] = RAM
 
             qmltask = QMLTask(
                 id=id,

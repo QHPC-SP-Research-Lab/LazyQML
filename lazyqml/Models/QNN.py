@@ -79,15 +79,11 @@ class QNN(Model):
         self.dev = qml.device(backend_name, wires=self.nqubits, shots=shots)
 
     def _build_qnode(self):
-        wires = range(self.nqubits)
-
-        ansatz = self.circuit_factory.GetAnsatzCircuit(self.ansatz)
+        wires     = range(self.nqubits)
+        ansatz    = self.circuit_factory.GetAnsatzCircuit(self.ansatz)
         embedding = self.circuit_factory.GetEmbeddingCircuit(self.embedding)
 
         def circuit(x, params):
-            # self.embedding(x, wires=wires)
-            # self.ansatz(params, wires=wires, nlayers=self.layers)
-
             embedding(x, wires=wires)
             ansatz.getCircuit()(params, wires=wires)
 
@@ -136,6 +132,7 @@ class QNN(Model):
         ds          = torch.utils.data.TensorDataset(X_train, y_train)
         data_loader = torch.utils.data.DataLoader(ds, batch_size=self.batch_size, shuffle=True, drop_last=False)
 
+        printer.print(f"\tTraining QNN...")
         for _epoch in range(self.epochs):
             for batch_X, batch_y in data_loader:
                 self.opt.zero_grad(set_to_none=True)
@@ -144,6 +141,7 @@ class QNN(Model):
                 loss.backward()
                 self.opt.step()
         self.params = self.params.detach()
+        printer.print("\tQNN training complete.")
 
     def predict(self, X):
         if self.params is None:
@@ -154,6 +152,7 @@ class QNN(Model):
 
         X_test = torch.tensor(X, dtype=torch.float32).to(self.torch_device)
 
+        printer.print("\tTesting QNN...")
         preds_all = []
         bs        = self.batch_size
         with torch.inference_mode():
@@ -165,6 +164,7 @@ class QNN(Model):
             y_pred = torch.sigmoid(y_pred.view(-1))
             return (y_pred > 0.5).cpu().numpy()
 
+        printer.print("\tQNN testing complete.")
         return torch.argmax(y_pred, dim=1).cpu().numpy()
 
 
@@ -244,7 +244,8 @@ class QNNBag(Model):
     def forward(self, x):
         qnn_output = self.qnn(x, self.params)
         if self.n_class == 2:
-            return qnn_output.squeeze()
+            return qnn_output.reshape(-1)
+            # 16/4/2026: before `return qnn_output.squeeze()` but it exhibits random execution errors
         else:
             return torch.stack(qnn_output).T
 
@@ -258,10 +259,6 @@ class QNNBag(Model):
         n_total_features = X.shape[1]
         if n_total_features < self.nqubits:
             raise ValueError(f"Input data has only {n_total_features} features, but nqubits={self.nqubits}.")
-
-        n_selected_features = max(1, int(self.n_features * n_total_features))
-        if n_selected_features != self.nqubits:
-            raise ValueError(f"QNNBag requires exactly nqubits={self.nqubits} selected features per estimator, but n_features produces {n_selected_features} features from {n_total_features} input features.")
 
         is_gpu_backend = (self.backend == Backend.lightningGPU if isinstance(self.backend, Backend) else self.backend == Backend.lightningGPU.value)
        
@@ -392,7 +389,7 @@ class MPSQNN(Model):
 
         self.torch_device = torch_device
         self.backend = backend
-        self.shots = shots
+        self.shots = None
         self.diff_method = diff_method
         self.circuit_factory = CircuitFactory(nqubits, layers)
 
@@ -410,9 +407,8 @@ class MPSQNN(Model):
     # Device
     # ============================================================
     def _build_device(self):
-        shots        = None if self.shots in (None, 0) else self.shots
         backend_name = self.backend.value if isinstance(self.backend, Backend) else self.backend
-        self.dev     = qml.device(backend_name, wires=self.nqubits, method="mps", shots=shots)
+        self.dev     = qml.device(backend_name, wires=self.nqubits, method="mps", shots=self.shots)
 
     # ============================================================
     # QNode (broadcast-safe)
@@ -443,13 +439,11 @@ class MPSQNN(Model):
     # Forward for predictions
     # ============================================================
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        preds = self.qnode(x, self.params)
+        preds = torch.stack([self.qnode(xi, self.params) for xi in x], dim=0)
 
         if self.n_class == 2:
             return preds.reshape(-1, 1)
 
-        # multi-class
-        preds = torch.stack(preds, dim=-1)
         return preds
 
     # ============================================================
@@ -468,31 +462,34 @@ class MPSQNN(Model):
         if self.n_class == 2 and y_train.ndim == 1:
             y_train = y_train.unsqueeze(1)
 
-        self.params = torch.randn((self._n_params,), device=self.torch_device)
+        # SPSA in PennyLane expects trainable array-like inputs and a scalar
+        # objective result with NumPy-like shape semantics.
+        self.params = qml.numpy.array(np.random.randn(self._n_params), requires_grad=True)
 
         self.opt = qml.SPSAOptimizer(maxiter=1)
 
         dataset = torch.utils.data.TensorDataset(X_train, y_train)
-        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=False)
+        loader  = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=False)
 
         for _ in range(self.epochs):
             for batch_X, batch_y in loader:
 
                 def closure(params, **kwargs):
-                    preds = self.qnode(batch_X, params)
+                    params_t = torch.as_tensor(params, dtype=torch.float32, device=self.torch_device)
+                    preds = torch.stack([self.qnode(x, params_t) for x in batch_X], dim=0)
 
                     if self.n_class == 2:
                         preds = preds.view(-1, 1)
-                    else:
-                        preds = torch.stack(preds, dim=-1)
 
                     loss = self.criterion(preds, batch_y)
-                    return loss
+
+                    return np.asarray(loss.detach().cpu().item())
+                    # 16/4/2026: before `return qml.numpy.array(loss.detach().cpu().item())` but it exhibits random execution errors
 
                 # pass stepsize here
                 self.params = self.opt.step(closure, self.params, stepsize=self.lr)
 
-        self.params = self.params.detach()
+        self.params = torch.as_tensor(np.asarray(self.params), dtype=torch.float32, device=self.torch_device)
 
     # ============================================================
     # Prediction
