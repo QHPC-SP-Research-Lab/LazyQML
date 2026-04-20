@@ -7,11 +7,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from sklearn.metrics import f1_score, accuracy_score, balanced_accuracy_score
-
 from lazyqml.Preprocessing import AcousticFeatures, PCAHelper
-from lazyqml.Models import QNN
-from lazyqml.Global.globalEnums import Ansatzs, Embedding
+from lazyqml.Utils  import set_simulation_type
+from lazyqml        import QuantumClassifier
+from lazyqml.Global import Ansatzs, Embedding, Model
 
 np.random.seed(1234)
 torch.manual_seed(1234)
@@ -62,40 +61,54 @@ def main():
 
     data_root = Path(args.data_root)
     classes   = collect_wavs_by_class(data_root)
-    n_classes = len(classes)
     items     = flatten_labeled_wavs(classes)
     wav_files = [str(path) for path, _, _ in items]
     y         = np.array([label for _, label, _ in items], dtype=int)
 
     # --------------------------------------------------
+    # Config parameters
+    # --------------------------------------------------
+    verbose    = False
+    sequential = False
+    embeddings = {Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.AMP, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER}
+    nFeatures  = 8
+    nqubits    = {nFeatures}
+    random_st  = 0
+
+    # --------------------------------------------------
     # 1. Extract acoustic features
     # --------------------------------------------------
-    extractor = AcousticFeatures(sr=4000, duration=2.0, n_mfcc=20, n_mels=32)
-    X         = extractor.fit_transform(wav_files)
-
-    nqubits = 8
-    pca = PCAHelper(nqubits=nqubits, ncomponents=nqubits)
+    extrc = AcousticFeatures(sr=4000, duration=2.0, n_mfcc=20, n_mels=32)
+    X     = extrc.fit_transform(wav_files)
+    pca   = PCAHelper(nqubits=nFeatures, ncomponents=nFeatures)
     X_red = pca.fit_transform(X, y)
 
     # --------------------------------------------------
-    # 2. Train QNN
+    # 2. Statevector
     # --------------------------------------------------
-    model = QNN(nqubits=nqubits, ansatz=Ansatzs.HARDWARE_EFFICIENT, embedding=Embedding.RY, n_class=n_classes, layers=2, epochs=10, shots=0, lr=0.01, batch_size=4, backend="lightning.qubit")
-    model.fit(X_red, y)
+    sim_type="statevector"
+    set_simulation_type(sim_type)
+    models = {Model.FastQSVM}
+    model  = QuantumClassifier(nqubits=nqubits, embeddings=embeddings, classifiers=models, verbose=verbose, sequential=sequential, randomstate=random_st)
 
-    # --------------------------------------------------
-    # 3. Predict
-    # --------------------------------------------------
-    preds = model.predict(X_red)
+    print(f"{sim_type} train/test con {models}")
+    scores = model.fit(X_red, y, test_size=0.3, showTable=True)
 
-    assert len(preds) == len(y)
-    assert np.all(np.isfinite(preds))
+    print(f"\n{sim_type} con CV (10, 5) con {models}")
+    scores = model.repeated_cross_validation(X_red, y, n_splits=5, n_repeats=10, showTable=True)
 
-    accuracy   = accuracy_score(y, preds)
-    b_accuracy = balanced_accuracy_score(y, preds)
-    f1         = f1_score(y, preds, average="weighted")
 
-    print(f"{accuracy:.3f}, {b_accuracy:.3f}, {f1:.3f}", flush=True)
+    sim_type   = "tensor"
+    embeddings = {Embedding.RX}
+    models     = {Model.MPSQSVM}
+
+    set_simulation_type(sim_type)
+    model  = QuantumClassifier(nqubits=nqubits, embeddings=embeddings, classifiers=models, verbose=verbose, sequential=sequential, randomstate=random_st)
+    print(f"\n\n{sim_type} train/test con {models}")
+    scores = model.fit(X_red, y, test_size=0.3, showTable=True)
+
+    print(f"\n{sim_type} con CV (10, 5) con {models}")
+    scores = model.repeated_cross_validation(X_red, y, n_splits=5, n_repeats=10, showTable=True)
 
 if __name__ == "__main__":
     main()

@@ -10,6 +10,7 @@ from threadpoolctl import threadpool_limits
 
 from lazyqml.Factories         import CircuitFactory
 from lazyqml.Global            import config
+from lazyqml.Global.globalEnums import Embedding
 from lazyqml.Interfaces.iModel import Model
 from lazyqml.Utils             import printer, _numpy_math_api, get_max_bond_dim
 
@@ -435,11 +436,13 @@ class MPSQKNN(Model):
 
         self.circuit_factory   = CircuitFactory(nqubits, nlayers=0)
         self.nqubits           = nqubits
+        self.embedding         = embedding
         self.embedding_circuit = self.circuit_factory.GetEmbeddingCircuitMPS(embedding)
         self.cores             = cores
         self.k                 = k
         self.kernel_circ       = self._build_kernel()
         self.X_train           = None
+        self.train_states      = None
         self.KNN               = None
         self.max_bond_dim      = get_max_bond_dim()
         self.state_dtype       = state_dtype
@@ -478,6 +481,30 @@ class MPSQKNN(Model):
             return psi_final
         return mps
 
+    def _build_states(self, X):
+        with self._single_thread_ctx():
+            return [self.kernel_circ(x) for x in X]
+
+    def _is_analytic_embedding(self):
+        return self.embedding in {Embedding.RX, Embedding.RY, Embedding.RZ}
+
+    def _prepare_angle_features(self, X):
+        X = np.asarray(X, dtype=np.float64)
+        if X.ndim == 1:
+            X = X.reshape(1, -1)
+        if X.shape[1] > self.nqubits:
+            raise ValueError(f"Features must be of length <= {self.nqubits}; got length {X.shape[1]}.")
+        if X.shape[1] < self.nqubits:
+            X = np.pad(X, ((0, 0), (0, self.nqubits - X.shape[1])), mode="constant")
+        return X
+
+    def _analytic_kernel(self, X1, X2):
+        A = self._prepare_angle_features(X1)
+        B = self._prepare_angle_features(X2)
+        delta = A[:, None, :] - B[None, :, :]
+        K = np.prod(np.cos(0.5 * delta) ** 2, axis=2, dtype=np.float64)
+        return K.astype(self.kernel_dtype, copy=False)
+
 
     def _mps_overlap(self, X1, X2):
         if len(X1) == 0 or len(X2) == 0:
@@ -491,20 +518,17 @@ class MPSQKNN(Model):
         if X1 is X2:
             for i in range(N):
                 bra_i   = X1[i].H
-                amp     = qtn.expec_TN_1D(bra_i, X2[i])
-                K[i, i] = abs(complex(amp)) ** 2
+                K[i, i] = abs(bra_i @ X2[i]) ** 2
 
                 for j in range(i + 1, N):
-                    amp = qtn.expec_TN_1D(bra_i, X2[j])
-                    val = abs(complex(amp)) ** 2
+                    val = abs(bra_i @ X2[j]) ** 2
                     K[i, j] = val
                     K[j, i] = val
         else:
             for i in range(N):
                 bra_i = X1[i].H
                 for j in range(M):
-                    amp = qtn.expec_TN_1D(bra_i, X2[j])
-                    K[i, j] = abs(complex(amp)) ** 2
+                    K[i, j] = abs(bra_i @ X2[j]) ** 2
         return K
 
 
@@ -530,10 +554,19 @@ class MPSQKNN(Model):
                     K[i, j] = abs(X1[i].H @ X2[j]) ** 2
         return K
 
-    def _quantum_kernel(self, X1, X2, is_symmetric: bool = False):
-        with self._single_thread_ctx():
-            states_2 = [self.kernel_circ(x) for x in X2]
-            states_1 = states_2 if is_symmetric else [self.kernel_circ(x) for x in X1]
+    def _quantum_kernel(self, X1, X2, is_symmetric: bool = False, *, states_1=None, states_2=None):
+        if self._is_analytic_embedding():
+            K = self._analytic_kernel(X1, X2)
+            if is_symmetric:
+                K = 0.5 * (K + K.T)
+                np.fill_diagonal(K, 1.0)
+            np.clip(K, 0.0, 1.0, out=K)
+            return K
+
+        if states_2 is None:
+            states_2 = self._build_states(X2)
+        if states_1 is None:
+            states_1 = states_2 if is_symmetric else self._build_states(X1)
 
         K = self._mps_overlap(states_1, states_2)
 
@@ -569,7 +602,11 @@ class MPSQKNN(Model):
             raise ValueError(f"k={self.k} cannot be larger than the number of training samples ({n_train}).")
 
         printer.print("\t\tTraining the MPSQKNN...")
-        self.q_distances = self._compute_distances(X, X, is_symmetric=True)
+        self.train_states = self._build_states(X)
+        K = self._quantum_kernel(X, X, is_symmetric=True, states_1=self.train_states, states_2=self.train_states)
+        self.q_distances = 1.0 - K
+        self.q_distances = 0.5 * (self.q_distances + self.q_distances.T)
+        np.fill_diagonal(self.q_distances, 0.0)
         self.KNN = KNeighborsClassifier(n_neighbors=self.k, metric='precomputed')
         self.KNN.fit(self.q_distances, y)
         printer.print("\t\tMPSQKNN training complete.")
@@ -577,13 +614,14 @@ class MPSQKNN(Model):
     # -------------------------------------------------------------------------
     def predict(self, X):
         try:
-            if self.X_train is None or self.KNN is None:
+            if self.X_train is None or self.train_states is None or self.KNN is None:
                 raise ValueError("Model has not been fitted. Call fit() before predict().")
 
             if len(X) == 0:
                 raise ValueError("X must contain at least one sample.")
 
-            q_distances = self._compute_distances(X, self.X_train, is_symmetric=False)
+            K = self._quantum_kernel(X, self.X_train, is_symmetric=False, states_2=self.train_states)
+            q_distances = 1.0 - K
             return self.KNN.predict(q_distances)
         except Exception as e:
             printer.print(f"Error during prediction: {str(e)}")

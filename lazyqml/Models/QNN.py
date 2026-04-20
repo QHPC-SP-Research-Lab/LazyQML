@@ -388,6 +388,7 @@ class MPSQNN(Model):
             raise ValueError("batch_size must be a positive integer.")
 
         self.torch_device = torch_device
+        self.torch_dtype = torch.float32
         self.backend = backend
         self.shots = None
         self.diff_method = diff_method
@@ -438,13 +439,21 @@ class MPSQNN(Model):
     # ============================================================
     # Forward for predictions
     # ============================================================
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        preds = torch.stack([self.qnode(xi, self.params) for xi in x], dim=0)
-
+    def _format_preds(self, preds):
         if self.n_class == 2:
             return preds.reshape(-1, 1)
 
+        if isinstance(preds, (tuple, list)):
+            preds = torch.stack(list(preds), dim=0)
+
+        if preds.ndim == 2 and preds.shape[0] == self.n_class:
+            preds = preds.transpose(0, 1)
+
         return preds
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        preds = self.qnode(x, self.params)
+        return self._format_preds(preds)
 
     # ============================================================
     # Training using SPSAOptimizer
@@ -456,7 +465,7 @@ class MPSQNN(Model):
         if len(X) != len(y):
             raise ValueError(f"Expected one target label per input sample, but got {len(X)} samples and {len(y)} labels.")         
 
-        X_train = torch.tensor(X, dtype=torch.float32, device=self.torch_device)
+        X_train = torch.tensor(X, dtype=self.torch_dtype, device=self.torch_device)
         y_train = torch.tensor(y, dtype=torch.float32 if self.n_class == 2 else torch.long, device=self.torch_device)
 
         if self.n_class == 2 and y_train.ndim == 1:
@@ -475,11 +484,8 @@ class MPSQNN(Model):
             for batch_X, batch_y in loader:
 
                 def closure(params, **kwargs):
-                    params_t = torch.as_tensor(params, dtype=torch.float32, device=self.torch_device)
-                    preds = torch.stack([self.qnode(x, params_t) for x in batch_X], dim=0)
-
-                    if self.n_class == 2:
-                        preds = preds.view(-1, 1)
+                    params_t = torch.as_tensor(params, dtype=self.torch_dtype, device=self.torch_device)
+                    preds = self._format_preds(self.qnode(batch_X, params_t))
 
                     loss = self.criterion(preds, batch_y)
 
@@ -489,7 +495,7 @@ class MPSQNN(Model):
                 # pass stepsize here
                 self.params = self.opt.step(closure, self.params, stepsize=self.lr)
 
-        self.params = torch.as_tensor(np.asarray(self.params), dtype=torch.float32, device=self.torch_device)
+        self.params = torch.as_tensor(np.asarray(self.params), dtype=self.torch_dtype, device=self.torch_device)
 
     # ============================================================
     # Prediction
@@ -501,7 +507,7 @@ class MPSQNN(Model):
         if len(X) == 0:
             raise ValueError("Prediction data is empty.")
 
-        X_test = torch.tensor(X, dtype=torch.float32, device=self.torch_device)
+        X_test = torch.tensor(X, dtype=self.torch_dtype, device=self.torch_device)
 
         with torch.inference_mode():
             preds = self.forward(X_test)

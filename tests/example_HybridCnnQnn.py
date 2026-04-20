@@ -5,13 +5,15 @@
 import argparse
 from pathlib import Path
 import numpy as np
+import pennylane as qml
 import torch
 
 from sklearn.metrics import f1_score, accuracy_score, balanced_accuracy_score
 
 from lazyqml.Preprocessing import MelSpectrogram
 from lazyqml.Models import HybridCNNQNN
-from lazyqml.Global.globalEnums import Ansatzs, Embedding
+from lazyqml.Global.globalEnums import Ansatzs, Embedding, Backend
+from lazyqml.Utils import set_simulation_type
 
 np.random.seed(1234)
 torch.manual_seed(1234)
@@ -54,6 +56,16 @@ def flatten_labeled_wavs(classes_dict):
     return items
 
 
+def pick_statevector_backend(torch_device: str, nqubits: int):
+    if torch_device == "cuda":
+        try:
+            qml.device(Backend.lightningGPU.value, wires=nqubits)
+            return Backend.lightningGPU
+        except Exception:
+            pass
+    return Backend.lightningQubit
+
+
 def main():
     ap = argparse.ArgumentParser(description="Example of: acoustic_features + QNN with lazyqml.")
     ap.add_argument("--data_root", type=str, required=True, help="Folder with subdirectories per class (each containing .wav files).")
@@ -74,11 +86,15 @@ def main():
     X   = ext.fit_transform(wav_files)
 
     nqubits = 8
+    set_simulation_type("statevector")
+    torch_device = "cuda" if torch.cuda.is_available() else "cpu"
+    backend = pick_statevector_backend(torch_device, nqubits)
+
     # --------------------------------------------------
-    # 2. Train HybridCNNQNN
+    # 2. Train/test HybridCNNQNN
     # --------------------------------------------------
     model = HybridCNNQNN(input_shape=X.shape[1:], nqubits=nqubits, ansatz=Ansatzs.HARDWARE_EFFICIENT, embedding=Embedding.RY, n_class=n_classes,
-        layers=2, epochs=10, shots=0, lr=0.01, batch_size=4, backend="lightning.qubit") 
+        layers=2, epochs=10, shots=0, lr=0.01, batch_size=4, torch_device=torch_device, backend=backend)
     model.fit(X, y)
 
     # --------------------------------------------------
@@ -94,6 +110,12 @@ def main():
     f1         = f1_score(y, preds, average="weighted")
 
     print(f"{accuracy:.3f}, {b_accuracy:.3f}, {f1:.3f}", flush=True)
+
+    # --------------------------------------------------
+    # 4. Repeated cross validation
+    # --------------------------------------------------
+    scores = model.repeated_cross_validation(X, y, n_splits=5, n_repeats=2, showTable=True)
+    print(scores["summary"].to_string(index=False), flush=True)
 
 if __name__ == "__main__":
     main()
