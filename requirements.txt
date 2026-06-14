@@ -18,7 +18,7 @@ joblib
 gputil
 quimb==1.8.1
 cotengra==0.6.2
-autoray==1.11.4
+autoray==0.7.2
 optuna
 ipykernel
 nvidia-ml-py
