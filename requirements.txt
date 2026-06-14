@@ -16,9 +16,9 @@ psutil
 pandas
 joblib
 gputil
-quimb
-cotengra
-autoray
+quimb<1.8
+cotengra<0.7
+autoray<0.8
 optuna
 ipykernel
 nvidia-ml-py
