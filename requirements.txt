@@ -3,7 +3,7 @@ tabulate
 torch
 torchaudio
 torchvision
-scipy<1.12
+scipy=1.11.4
 scikit-learn
 PennyLane==0.42.3
 PennyLane_Lightning==0.42
@@ -16,9 +16,9 @@ psutil
 pandas
 joblib
 gputil
-quimb<1.8
-cotengra<0.7
-autoray<0.8
+quimb=1.8.1
+cotengra=0.6.2
+autoray=1.11.4
 optuna
 ipykernel
 nvidia-ml-py
