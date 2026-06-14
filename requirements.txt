@@ -17,6 +17,7 @@ pandas
 joblib
 gputil
 quimb
+optuna
 ipykernel
 nvidia-ml-py
 librosa

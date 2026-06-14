@@ -11,7 +11,7 @@
 
 
 
-LazyQML is a Python library designed to streamline, automate, and accelerate experimentation with Quantum Machine Learning (QML) architectures, right on classical computers.
+LazyQML is a Python library designed to streamline, automate, and accelerate experimentation with Quantum Machine Learning (QML) architectures, right on classical computers. The `ZZ` embedding is all-to-all, while `ZZ_LOCAL` uses nearest-neighbour couplings.
 
 With LazyQML, you can:
   - 🛠️ Build, test, and benchmark QML models with minimal effort.
@@ -68,7 +68,7 @@ data = load_iris()
 X = data.data
 y = data.target
 
-classifier = QuantumClassifier(nqubits={4}, classifiers={Model.QNN, Model.QSVM}, epochs=10)
+classifier = QuantumClassifier(nqubits={4}, classifiers={Model.QNN, Model.QSVM}, embeddings={Embedding.ZZ, Embedding.ZZ_LOCAL}, epochs=10)
 
 # Fit and predict
 classifier.fit(X=X, y=y, test_size=0.4)

@@ -9,7 +9,9 @@ class ModelFactory:
         pass
 
     def getModel(self, model, nqubits, embedding, ansatz, n_class, input_shape=None, layers=5, shots=1, n_samples=1.0, n_features=1.0,
-                lr=0.01, batch_size=8, epochs=50, seed=1234, backend=Backend.lightningQubit, numPredictors=10, K=5, mem_budget_mb=None):
+                lr=0.01, batch_size=8, epochs=50, seed=1234, backend=Backend.lightningQubit, numPredictors=10, K=5, mem_budget_mb=None,
+                C=1.0, class_weight=None, tol=1e-3, cache_size=200, max_iter=-1, shrinking=True, probability=False,
+                random_state=None, decision_function_shape="ovr", break_ties=False, verbose=False):
 
         simulation_type    = get_simulation_type()
         statevector_models = {Model.QKNN, Model.FastQKNN, Model.QSVM, Model.FastQSVM, Model.QNN, Model.QNNBAG}
@@ -44,16 +46,25 @@ class ModelFactory:
 
 
         if model == Model.QSVM:
-            return QSVM(nqubits=nqubits, embedding=embedding, shots=shots, seed=seed, backend=backend)
+            return QSVM(nqubits=nqubits, embedding=embedding, shots=shots, seed=seed, backend=backend,
+                         C=C, class_weight=class_weight, tol=tol, cache_size=cache_size, max_iter=max_iter,
+                         shrinking=shrinking, probability=probability, random_state=random_state,
+                         decision_function_shape=decision_function_shape, break_ties=break_ties, verbose=verbose)
 
         if model == Model.FastQSVM:
             backend_name = backend.value if isinstance(backend, Backend) else backend
             device = qml.device(backend_name, wires=nqubits)
             qnode  = qml.qnode(device, diff_method=None)
-            return FastQSVM(nqubits=nqubits, embedding=embedding, qnode=qnode, mem_budget_mb=mem_budget_mb)
+            return FastQSVM(nqubits=nqubits, embedding=embedding, qnode=qnode, mem_budget_mb=mem_budget_mb,
+                            C=C, class_weight=class_weight, tol=tol, cache_size=cache_size, max_iter=max_iter,
+                            shrinking=shrinking, probability=probability, random_state=random_state,
+                            decision_function_shape=decision_function_shape, break_ties=break_ties, verbose=verbose)
 
         if model == Model.MPSQSVM:
-            return MPSQSVM(nqubits=nqubits, embedding=embedding)
+            return MPSQSVM(nqubits=nqubits, embedding=embedding, C=C, class_weight=class_weight, tol=tol,
+                           cache_size=cache_size, max_iter=max_iter, shrinking=shrinking, probability=probability,
+                           random_state=random_state, decision_function_shape=decision_function_shape,
+                           break_ties=break_ties, verbose=verbose)
 
 
         if model == Model.QNN:

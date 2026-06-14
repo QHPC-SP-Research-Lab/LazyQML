@@ -35,7 +35,7 @@ class TestALL():
         n_samples  = 20
         nqubits    = {8}
         n_features = 8
-        embeddings = {Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.AMP, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER}
+        embeddings = {Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.ZZ, Embedding.ZZ_LOCAL, Embedding.AMP, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER}
         ansatzs    = {Ansatzs.HCZRX, Ansatzs.TREE_TENSOR, Ansatzs.TWO_LOCAL, Ansatzs.HARDWARE_EFFICIENT, Ansatzs.ANNULAR}
         models     = {Model.QSVM, Model.FastQSVM, Model.QKNN, Model.FastQKNN, Model.QNN, Model.QNNBAG}
 
@@ -46,7 +46,7 @@ class TestALL():
                                epochs=epochs,   numLayers=layers, batchSize=batch_size, randomstate=random_state, threshold=threshold, numFeatures=numFeatures)
         qc.fit(X, y)
 
-        embeddings = {Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER}
+        embeddings = {Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.ZZ, Embedding.ZZ_LOCAL, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER}
         models     = {Model.MPSQSVM, Model.MPSQKNN, Model.MPSQNN}
 
 

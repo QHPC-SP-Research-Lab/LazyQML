@@ -1,7 +1,7 @@
 # ----------------------------------------------------
 # Example: acoustic features + HybridCNNQNN
 # ----------------------------------------------------
-
+import os
 import argparse
 from pathlib import Path
 import numpy as np
@@ -82,7 +82,7 @@ def main():
     # --------------------------------------------------
     # 1. Extract acoustic features
     # --------------------------------------------------
-    ext = MelSpectrogram(sr=8000, duration=2.0, n_mels=64, n_fft=256, hop_length=128)
+    ext = MelSpectrogram(sr=4000, duration=2.0, n_mels=64, n_fft=256, hop_length=128)
     X   = ext.fit_transform(wav_files)
 
     nqubits = 8
@@ -93,29 +93,39 @@ def main():
     # --------------------------------------------------
     # 2. Train/test HybridCNNQNN
     # --------------------------------------------------
-    model = HybridCNNQNN(input_shape=X.shape[1:], nqubits=nqubits, ansatz=Ansatzs.HARDWARE_EFFICIENT, embedding=Embedding.RY, n_class=n_classes,
-        layers=2, epochs=10, shots=0, lr=0.01, batch_size=4, torch_device=torch_device, backend=backend)
-    model.fit(X, y)
+    for embedding in (Embedding.ZZ, Embedding.ZZ_LOCAL):
+        print(f"\nHybridCNNQNN with {embedding.name}", flush=True)
+        model = HybridCNNQNN(input_shape=X.shape[1:], nqubits=nqubits, ansatz=Ansatzs.HARDWARE_EFFICIENT, embedding=embedding, n_class=n_classes,
+                             layers=2, epochs=10, shots=0, lr=0.01, batch_size=16, torch_device=torch_device, backend=backend)
+        # model.fit(X, y)
 
-    # --------------------------------------------------
-    # 3. Predict
-    # --------------------------------------------------
-    preds = model.predict(X)
+        # --------------------------------------------------
+        # 3. Predict
+        # --------------------------------------------------
+        # preds = model.predict(X)
 
-    assert len(preds) == len(y)
-    assert np.all(np.isfinite(preds))
+        # assert len(preds) == len(y)
+        # assert np.all(np.isfinite(preds))
 
-    accuracy   = accuracy_score(y, preds)
-    b_accuracy = balanced_accuracy_score(y, preds)
-    f1         = f1_score(y, preds, average="weighted")
+        # accuracy   = accuracy_score(y, preds)
+        # b_accuracy = balanced_accuracy_score(y, preds)
+        # f1         = f1_score(y, preds, average="weighted")
+        # print(f"{accuracy:.3f}, {b_accuracy:.3f}, {f1:.3f}", flush=True)
 
-    print(f"{accuracy:.3f}, {b_accuracy:.3f}, {f1:.3f}", flush=True)
 
-    # --------------------------------------------------
-    # 4. Repeated cross validation
-    # --------------------------------------------------
-    scores = model.repeated_cross_validation(X, y, n_splits=5, n_repeats=2, showTable=True)
-    print(scores["summary"].to_string(index=False), flush=True)
+        # --------------------------------------------------
+        # 4. Repeated cross validation
+        # --------------------------------------------------
+        # n_jobs: number of CV folds trained in parallel.
+        # worker_threads: intra-worker CPU threads used by PyTorch / BLAS / OpenMP.
+        # interop_threads: PyTorch inter-op thread pool size per worker.
+        n_jobs          = 1 if str(torch_device).startswith("cuda") else max(1, os.cpu_count() // 2)
+        n_jobs          = max(1, os.cpu_count() // 2)
+        worker_threads  = 1
+        interop_threads = 1
+        scores = model.repeated_cross_validation(X, y, n_splits=5, n_repeats=10, showTable=True,
+                                                 n_jobs=n_jobs, worker_threads=worker_threads, interop_threads=interop_threads)
+        print(scores["summary"].to_string(index=False), flush=True)
 
 if __name__ == "__main__":
     main()

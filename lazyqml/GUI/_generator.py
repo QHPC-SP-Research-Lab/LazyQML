@@ -35,6 +35,7 @@ def generate_code(button):
     ry = ry_checkbox.value
     rz = rz_checkbox.value
     zz = zz_checkbox.value
+    zz_local = zz_local_checkbox.value
     amplitude = amp_checkbox.value
     higher_order = ho_checkbox.value
     dense_angle = dense_checkbox.value
@@ -70,6 +71,7 @@ def generate_code(button):
     if ry: selected_embeddings.append("Embedding.RY")
     if rz: selected_embeddings.append("Embedding.RZ")
     if zz: selected_embeddings.append("Embedding.ZZ")
+    if zz_local: selected_embeddings.append("Embedding.ZZ_LOCAL")
     if amplitude: selected_embeddings.append("Embedding.AMP")
     if higher_order: selected_embeddings.append("Embedding.HIGHER_ORDER")
     if dense_angle: selected_embeddings.append("Embedding.DENSE_ANGLE")

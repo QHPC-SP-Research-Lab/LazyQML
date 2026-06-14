@@ -27,9 +27,10 @@ class Embedding(BaseEnum):
     RZ = 3
     RY = 4
     ZZ = 5
-    AMP = 6
-    DENSE_ANGLE = 7
-    HIGHER_ORDER = 8
+    ZZ_LOCAL = 6
+    AMP = 7
+    DENSE_ANGLE = 8
+    HIGHER_ORDER = 9
 
 # Enum for selecting the Models 
 class Model(BaseEnum):

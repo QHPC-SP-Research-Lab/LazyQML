@@ -54,6 +54,28 @@ class QuantumClassifier(BaseModel):
         Fractions of input features to be used by `Model.QNNBAG`. Each value defines a separate configuration.
     verbose : bool, optional (default=False)
         If True, training and execution messages are printed.
+    svmC : float, optional (default=1.0)
+        Regularization strength used by precomputed-kernel SVM models.
+    svmClassWeight : object, optional (default=None)
+        Class weights passed to precomputed-kernel SVM models.
+    svmTol : float, optional (default=1e-3)
+        Optimization tolerance used by precomputed-kernel SVM models.
+    svmCacheSize : int, optional (default=200)
+        Cache size in MB used by precomputed-kernel SVM models.
+    svmMaxIter : int, optional (default=-1)
+        Maximum iterations used by precomputed-kernel SVM models.
+    svmShrinking : bool, optional (default=True)
+        Whether to use the shrinking heuristic in precomputed-kernel SVM models.
+    svmProbability : bool, optional (default=False)
+        Whether to enable probability estimates in precomputed-kernel SVM models.
+    svmDecisionFunctionShape : str, optional (default="ovr")
+        Multiclass decision function shape used by precomputed-kernel SVM models.
+    svmBreakTies : bool, optional (default=False)
+        Whether to break ties in precomputed-kernel SVM models.
+    svmVerbose : bool, optional (default=False)
+        Whether to enable libsvm verbosity in precomputed-kernel SVM models.
+    svmRandomState : int, optional (default=None)
+        Seed used by precomputed-kernel SVM models. If omitted, the experiment seed is reused.
     customMetric : callable, optional (default=None)
         Custom evaluation metric. It must accept at least two arguments `(y_true, y_pred)` and return a scalar.
     customImputerNum : object, optional (default=None)
@@ -92,6 +114,17 @@ class QuantumClassifier(BaseModel):
     numSamples: Annotated[float, Field(gt=0, le=1)] = 1.0
     numFeatures: Annotated[Set[float], Field(min_length=1)] = {0.3, 0.5, 0.8}
     verbose: bool = False
+    svmC: Annotated[float, Field(gt=0)] = 1.0
+    svmClassWeight: Optional[Any] = None
+    svmTol: Annotated[float, Field(gt=0)] = 1e-3
+    svmCacheSize: Annotated[int, Field(gt=0)] = 200
+    svmMaxIter: int = -1
+    svmShrinking: bool = True
+    svmProbability: bool = False
+    svmRandomState: Optional[int] = None
+    svmDecisionFunctionShape: str = "ovr"
+    svmBreakTies: bool = False
+    svmVerbose: bool = False
     customMetric: Optional[Callable] = None
     customImputerNum: Optional[Any]  = None
     customImputerCat: Optional[Any]  = None
@@ -214,7 +247,18 @@ class QuantumClassifier(BaseModel):
             customImputerNum=self.customImputerNum,
             customImputerCat=self.customImputerCat,
             shots=self.shots,
-            batch=self.batchSize
+            batch=self.batchSize,
+            svmC=self.svmC,
+            svmClassWeight=self.svmClassWeight,
+            svmTol=self.svmTol,
+            svmCacheSize=self.svmCacheSize,
+            svmMaxIter=self.svmMaxIter,
+            svmShrinking=self.svmShrinking,
+            svmProbability=self.svmProbability,
+            svmRandomState=self.svmRandomState,
+            svmDecisionFunctionShape=self.svmDecisionFunctionShape,
+            svmBreakTies=self.svmBreakTies,
+            svmVerbose=self.svmVerbose,
         )
 
 

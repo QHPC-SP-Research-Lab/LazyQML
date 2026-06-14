@@ -71,7 +71,9 @@ Embeddings control how your classical data is encoded onto quantum states. LazyQ
 
 - `ALL`: All available embedding circuits.
 - `RX`, `RY`, `RZ`: Common qubit rotation embeddings.
-- `ZZ`, `AMP`, `DENSE_ANGLE`, `HIGHER_ORDER`: Embedding strategies based on entanglement and/or amplitude encoding.
+- `ZZ`: All-to-all ZZ entanglement embedding.
+- `ZZ_LOCAL`: Nearest-neighbour ZZ entanglement embedding.
+- `AMP`, `DENSE_ANGLE`, `HIGHER_ORDER`: Embedding strategies based on amplitude encoding or higher-order feature maps.
 
 #### ``Model``
 LazyQML supports a variety of quantum models, each suited for different tasks. Choose the model that best fits your data and problem:

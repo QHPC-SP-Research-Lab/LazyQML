@@ -16,16 +16,83 @@ from lazyqml.Utils             import printer, _numpy_math_api, get_max_bond_dim
 
 #warnings.filterwarnings("ignore")
 
+
+from lazyqml.Models._kernel_utils import _analytic_kernel, _finalize_kernel_matrix, _supports_analytic_kernel
+
+
+
+
+def _build_precomputed_svc(
+    *,
+    C=1.0,
+    class_weight=None,
+    tol=1e-3,
+    cache_size=200,
+    max_iter=-1,
+    shrinking=True,
+    probability=False,
+    random_state=None,
+    decision_function_shape="ovr",
+    break_ties=False,
+    verbose=False,
+):
+    return SVC(
+        kernel="precomputed",
+        C=C,
+        class_weight=class_weight,
+        tol=tol,
+        cache_size=cache_size,
+        max_iter=max_iter,
+        shrinking=shrinking,
+        probability=probability,
+        random_state=random_state,
+        decision_function_shape=decision_function_shape,
+        break_ties=break_ties,
+        verbose=verbose,
+    )
+
 # -----------------------------------------------------------------------------
 # QSVM : QSVM baseline
 # -----------------------------------------------------------------------------
 class QSVM(Model):
-    def __init__(self, nqubits, embedding, backend, shots, seed=1234):
+    def __init__(
+        self,
+        nqubits,
+        embedding,
+        backend,
+        shots,
+        seed=1234,
+        *,
+        C=1.0,
+        class_weight=None,
+        tol=1e-3,
+        cache_size=200,
+        max_iter=-1,
+        shrinking=True,
+        probability=False,
+        random_state=None,
+        decision_function_shape="ovr",
+        break_ties=False,
+        verbose=False,
+    ):
         super().__init__()
 
         self.nqubits           = nqubits
         self.embedding         = embedding
         self.shots             = shots
+        self.svc_params        = {
+            "C": C,
+            "class_weight": class_weight,
+            "tol": tol,
+            "cache_size": cache_size,
+            "max_iter": max_iter,
+            "shrinking": shrinking,
+            "probability": probability,
+            "random_state": seed if random_state is None else random_state,
+            "decision_function_shape": decision_function_shape,
+            "break_ties": break_ties,
+            "verbose": verbose,
+        }
         self.device            = qml.device(backend.value, wires=nqubits, seed=seed, shots=self.shots)
         self.circuit_factory   = CircuitFactory(nqubits, nlayers=0)
         self.kernel_circ       = self._build_kernel()
@@ -52,20 +119,16 @@ class QSVM(Model):
     def fit(self, X, y):
         self.X_train = X
 
-        printer.print("\tTraining QSVM...")
+        printer.print("	Training QSVM...")
 
         assume_norm = (self.shots is None)
 
         self.qkernel = qml.kernels.square_kernel_matrix(X, self.kernel_circ, assume_normalized_kernel=assume_norm)
+        self.qkernel = _finalize_kernel_matrix(self.qkernel, is_symmetric=True)
 
-        self.qkernel = 0.5 * (self.qkernel + self.qkernel.T)
-        np.clip(self.qkernel, 0.0, 1.0, out=self.qkernel)
-        np.fill_diagonal(self.qkernel, 1.0)
-
-        # Train the classical SVM with the quantum kernel
-        self.svm = SVC(kernel="precomputed")
+        self.svm = _build_precomputed_svc(**self.svc_params)
         self.svm.fit(self.qkernel, y)
-        printer.print("\tQSVM training complete.")
+        printer.print("	QSVM training complete.")
 
     def predict(self, X):
         try:
@@ -75,10 +138,10 @@ class QSVM(Model):
             if len(X) == 0:
                 raise ValueError("X must contain at least one sample.")
 
-            printer.print("\tTesting QSVM...")
+            printer.print("	Testing QSVM...")
             kernel_test = qml.kernels.kernel_matrix(X, self.X_train, self.kernel_circ)
             np.clip(kernel_test, 0.0, 1.0, out=kernel_test)
-            printer.print("\tQSVM testing complete.")
+            printer.print("	QSVM testing complete.")
 
             return self.svm.predict(kernel_test)
         except Exception as e:
@@ -91,7 +154,7 @@ class QSVM(Model):
 
 
 # -----------------------------------------------------------------------------
-# FastQSVM : QSVM Blocks based
+# FastQSVM : Analytic kernel, statevector mode A, or exact QSVM fallback
 # -----------------------------------------------------------------------------
 class FastQSVM(Model):
     def __init__(
@@ -103,16 +166,29 @@ class FastQSVM(Model):
             mem_budget_mb = None,
             cores: int = 1,
             state_dtype=config.state_dtype,
-            kernel_dtype=config.kernel_dtype
+            kernel_dtype=config.kernel_dtype,
+            C=1.0,
+            class_weight=None,
+            tol=1e-3,
+            cache_size=200,
+            max_iter=-1,
+            shrinking=True,
+            probability=False,
+            random_state=None,
+            decision_function_shape="ovr",
+            break_ties=False,
+            verbose=False,
         ):
         super().__init__()
 
         self.circuit_factory   = CircuitFactory(nqubits, nlayers=0)
         self.nqubits           = nqubits
+        self.embedding         = embedding
         self.qnode             = qnode
         self.embedding_circuit = self.circuit_factory.GetEmbeddingCircuit(embedding)
         self.cores             = cores
-        self.kernel_circ       = self._build_kernel()
+        self.kernel_circ       = self._build_state_kernel()
+        self.overlap_circ      = self._build_overlap_kernel()
         self.qkernel           = None
         self.X_train           = None
         self.svm               = None
@@ -121,16 +197,39 @@ class FastQSVM(Model):
         self.state_dtype   = state_dtype
         self.kernel_dtype  = kernel_dtype
         self.numpy_api     = _numpy_math_api()
+        self.svc_params    = {
+            "C": C,
+            "class_weight": class_weight,
+            "tol": tol,
+            "cache_size": cache_size,
+            "max_iter": max_iter,
+            "shrinking": shrinking,
+            "probability": probability,
+            "random_state": random_state,
+            "decision_function_shape": decision_function_shape,
+            "break_ties": break_ties,
+            "verbose": verbose,
+        }
 
-    # -------------------------------------------------------------------------
-    # QNode returns statevector
-    # -------------------------------------------------------------------------
-    def _build_kernel(self):
-        """Build the quantum kernel using a given embedding and ansatz."""
+    def _build_state_kernel(self):
         @self.qnode
         def kernel(x):
             self.embedding_circuit(x, wires=range(self.nqubits))
             return qml.state()
+        return kernel
+
+    def _build_overlap_kernel(self):
+        adj_embedding_circuit = qml.adjoint(self.embedding_circuit)
+
+        @self.qnode
+        def kernel_probs(x1, x2):
+            self.embedding_circuit(x1, wires=range(self.nqubits))
+            adj_embedding_circuit(x2, wires=range(self.nqubits))
+            return qml.probs(wires=range(self.nqubits))
+
+        def kernel(x1, x2):
+            return kernel_probs(x1, x2)[0]
+
         return kernel
 
     # -------------------------------------------------------------------------
@@ -148,199 +247,94 @@ class FastQSVM(Model):
             return nullcontext()
         return threadpool_limits(limits=1, user_api=api)
 
-    # -------------------------------------------------------------------------
-    # MODO C CPU: bloques en RAM
-    # -------------------------------------------------------------------------
-    def _quantum_kernel_block(self, X1, X2, is_symmetric: bool = False):
-        n1           = int(X1.shape[0])  # nº muestras X1 (test)
-        n2           = int(X2.shape[0])  # nº muestras X2 (train)
-        dim          = 1 << int(self.nqubits)
-        bs1, bs2     = min(n1, 4), min(n2, 4)
-        ratio        = n1 / (n1 + n2) if (n1 + n2) else 0.5
-        frac         = 0.80 if ratio < 0.2 else (0.60 if ratio < 0.4 else 0.50)
-        overhead     = config.fast_overhead      
-        bytes_state  = np.dtype(self.state_dtype).itemsize
+    def _is_analytic_embedding(self):
+        return _supports_analytic_kernel(self.embedding)
+
+    def _analytic_kernel(self, X1, X2):
+        return _analytic_kernel(self.embedding, X1, X2, self.nqubits, self.kernel_dtype)
+
+    def _fits_mode_a(self, n1: int, n2: int, is_symmetric: bool = False):
+        if self.mem_budget_mb is None:
+            return True
+
+        dim = 1 << int(self.nqubits)
+        overhead = config.fast_overhead
+
+        number_states = n1 if is_symmetric else (n1 + n2)
+        bytes_state = np.dtype(self.state_dtype).itemsize
+        bytes_state_need = bytes_state * dim * number_states
+
+        n_elems = (n1 * n1) if is_symmetric else (n1 * n2)
         bytes_kernel = np.dtype(self.kernel_dtype).itemsize
+        bytes_work = n_elems * (bytes_kernel + bytes_state)
 
-        if self.mem_budget_mb is not None:
-            budget_bytes = (float(self.mem_budget_mb) * 1024 * 1024) / overhead
+        mib_total_need = ((bytes_state_need + bytes_work) * overhead) / (1024 * 1024)
+        return mib_total_need <= float(self.mem_budget_mb)
 
-            # kernel_matrix always allocated (n1 x n2)
-            bytes_kernel_matrix = n1 * n2 * bytes_kernel
+    def _statevector_kernel(self, X1, X2, is_symmetric: bool = False):
+        dim = 1 << int(self.nqubits)
+        n1 = int(X1.shape[0])
+        n2 = int(X2.shape[0])
 
-            if bytes_kernel_matrix > budget_bytes:
-                raise MemoryError(f"FastQSVM needs kernel_matrix of ~{bytes_kernel_matrix/(1024*1024):.1f} MiB but budget is {float(self.mem_budget_mb):.1f} MiB.")
+        x_sv = np.empty((n1, dim), dtype=self.state_dtype)
+        y_sv = x_sv if is_symmetric else np.empty((n2, dim), dtype=self.state_dtype)
 
-            # Remaining budget for buffers + temporals
-            buffers_budget = budget_bytes - bytes_kernel_matrix
+        with self._single_thread_ctx():
+            for k in range(n1):
+                x_sv[k, :] = self.kernel_circ(X1[k])
 
-            def buffers_bytes(a: int, b: int) -> int:
-                return (a + b) * dim * bytes_state + (a * b) * (bytes_kernel + bytes_state)
+        if not is_symmetric:
+            with self._single_thread_ctx():
+                for k in range(n2):
+                    y_sv[k, :] = self.kernel_circ(X2[k])
 
-            # If (1,1) doesn't fit raise MemoryError
-            if buffers_bytes(1, 1) <= buffers_budget:
-                total = min(n1 + n2, 100000)  # initial guess, capped
-                bs1 = max(1, min(n1, int(total * frac)))
-                bs2 = max(1, min(n2, total - bs1))
+        with self._threadpool_ctx():
+            gram = x_sv @ y_sv.conj().T
 
-                # Shrink until it fits
-                while buffers_bytes(bs1, bs2) > buffers_budget:
-                    if bs1 >= bs2 and bs1 > 1:
-                        bs1 = max(1, bs1 // 2)
-                    elif bs2 > 1:
-                        bs2 = max(1, bs2 // 2)
-                    else:
-                        break
-                if is_symmetric:
-                    bs = min(bs1, bs2)
-                    bs1 = bs2 = bs
-            else:
-                raise MemoryError("FastQSVM cannot allocate minimal buffers for block mode.")
+        R = np.empty(gram.shape, dtype=self.kernel_dtype)
+        np.square(gram.real, out=R)
+        R += gram.imag * gram.imag
+        return _finalize_kernel_matrix(R, is_symmetric=is_symmetric)
 
-        kernel_matrix = np.empty((n1, n2),   dtype=self.kernel_dtype)
-        x_buf         = np.empty((bs1, dim), dtype=self.state_dtype)
-        y_buf         = np.empty((bs2, dim), dtype=self.state_dtype)
-        k_buf         = np.empty((bs1, bs2), dtype=self.kernel_dtype)
-
+    def _exact_kernel(self, X1, X2, is_symmetric: bool = False):
         if is_symmetric:
-            for i_start in range(0, n1, bs1):
-                i_end = min(i_start + bs1, n1)
-                m1    = i_end - i_start
-
-                with self._single_thread_ctx():
-                    for k in range(m1):
-                        x_buf[k, :] = self.kernel_circ(X1[i_start + k])
-                x_view = x_buf[:m1, :]
-
-                for j_start in range(i_start, n2, bs2):
-                    if j_start == i_start:
-                        j_end = i_end
-                        m2 = m1
-                        y_view = x_view
-                    else:
-                        j_end = min(j_start + bs2, n2)
-                        m2 = j_end - j_start
-
-                        with self._single_thread_ctx():
-                            for k in range(m2):
-                                y_buf[k, :] = self.kernel_circ(X1[j_start + k])
-                        y_view = y_buf[:m2, :]
-
-                    with self._threadpool_ctx():
-                        gram = x_view @ y_view.conj().T
-
-                    k_view = k_buf[:m1, :m2]
-                    np.square(gram.real, out=k_view)
-                    k_view += gram.imag * gram.imag
-
-                    kernel_matrix[i_start:i_end, j_start:j_end] = k_view
-                    if j_start != i_start:
-                        kernel_matrix[j_start:j_end, i_start:i_end] = k_view.T
+            K = qml.kernels.square_kernel_matrix(
+                X1,
+                self.overlap_circ,
+                assume_normalized_kernel=True,
+            )
         else:
-            for j_start in range(0, n2, bs2):
-                j_end = min(j_start + bs2, n2)
-                m2    = j_end - j_start
+            K = qml.kernels.kernel_matrix(X1, X2, self.overlap_circ)
+        K = K.astype(self.kernel_dtype, copy=False)
+        return _finalize_kernel_matrix(K, is_symmetric=is_symmetric)
 
-                with self._single_thread_ctx():
-                    for k in range(m2):
-                        y_buf[k, :] = self.kernel_circ(X2[j_start + k])
-                y_view = y_buf[:m2, :]
-
-                for i_start in range(0, n1, bs1):
-                    i_end = min(i_start + bs1, n1)
-                    m1    = i_end - i_start
-
-                    with self._single_thread_ctx():
-                        for k in range(m1):
-                            x_buf[k, :] = self.kernel_circ(X1[i_start + k])
-                    x_view = x_buf[:m1, :]
-
-                    with self._threadpool_ctx():
-                        gram = x_view @ y_view.conj().T
-
-                    k_view = k_buf[:m1, :m2]
-                    np.square(gram.real, out=k_view)
-                    k_view += gram.imag * gram.imag
-
-                    kernel_matrix[i_start:i_end, j_start:j_end] = k_view
-        
-        if is_symmetric:
-            kernel_matrix = 0.5 * (kernel_matrix + kernel_matrix.T)
-        np.clip(kernel_matrix, 0.0, 1.0, out=kernel_matrix)
-        if is_symmetric:
-            np.fill_diagonal(kernel_matrix, 1.0)
-        return kernel_matrix
-
-    # -------------------------------------------------------------------------
-    # Dispatcher: for now only A and C modes in CPU
-    # -------------------------------------------------------------------------
     def _quantum_kernel(self, X1, X2, is_symmetric: bool = False):
         """Calculate the quantum kernel matrix for SVM."""
-        dim = 1 << int(self.nqubits)
-        n1  = int(X1.shape[0])
-        n2  = int(X2.shape[0])
+        if self._is_analytic_embedding():
+            return _finalize_kernel_matrix(self._analytic_kernel(X1, X2), is_symmetric=is_symmetric)
 
-        a_mode = False
-        if self.mem_budget_mb is not None:
-            overhead = config.fast_overhead
+        n1 = int(X1.shape[0])
+        n2 = int(X2.shape[0])
 
-            # RAM needed for statevector matrix: 2**nqubits * state_dtype * (n1 or n1+n2) 
-            number_states  = n1 if is_symmetric else (n1 + n2)
-            bytes_state    = np.dtype(self.state_dtype).itemsize
-            byt_state_need = bytes_state * dim * number_states
+        if not self._fits_mode_a(n1, n2, is_symmetric=is_symmetric):
+            return self._exact_kernel(X1, X2, is_symmetric=is_symmetric)
 
-            # RAM needed for
-            n_elems      = (n1 * n1) if is_symmetric else (n1 * n2)
-            bytes_kernel = np.dtype(self.kernel_dtype).itemsize
-            byt_R_need   = n_elems * (bytes_kernel + bytes_state)
-
-            # Total RAM needed
-            MiB_total_need = ((byt_state_need + byt_R_need) * overhead) / (1024 * 1024)
-            a_mode = (MiB_total_need <= float(self.mem_budget_mb))
-            
-        if a_mode:
-            #printer.print(f"Mode A, MiB needed {MiB_total_need}, Budget MiB {float(self.mem_budget_mb)}")
-            x_sv = np.empty((n1, dim), dtype=self.state_dtype)
-            y_sv = x_sv if is_symmetric else np.empty((n2, dim), dtype=self.state_dtype)
-
-            # We can use batching (x_sv = self.kernel_circ(X1)), but not all backend works with it
-            with self._single_thread_ctx():
-                for k in range(n1):
-                    x_sv[k, :] = self.kernel_circ(X1[k])
-
-            if not is_symmetric:
-                with self._single_thread_ctx():
-                    for k in range(n2):
-                        y_sv[k, :] = self.kernel_circ(X2[k])
-
-            with self._threadpool_ctx():
-                gram = x_sv @ y_sv.conj().T
-
-            R = np.empty(gram.shape, dtype=self.kernel_dtype)
-            np.square(gram.real, out=R)
-            R += gram.imag * gram.imag
-
-            if is_symmetric:
-                R = 0.5 * (R + R.T)
-            np.clip(R, 0.0, 1.0, out=R)
-            if is_symmetric:
-                np.fill_diagonal(R, 1.0)
-            return R
-
-        # C Mode in CPU
-        return self._quantum_kernel_block(X1, X2, is_symmetric=is_symmetric)
+        try:
+            return self._statevector_kernel(X1, X2, is_symmetric=is_symmetric)
+        except MemoryError:
+            return self._exact_kernel(X1, X2, is_symmetric=is_symmetric)
 
     # -------------------------------------------------------------------------
     # API fit / predict
     # -------------------------------------------------------------------------
     def fit(self, X, y):
         self.X_train = X
-        printer.print("\tTraining FastQSVM...")
+        printer.print("	Training FastQSVM...")
 
         self.qkernel = self._quantum_kernel(X, X, True)
-        self.svm     = SVC(kernel="precomputed")
+        self.svm     = _build_precomputed_svc(**self.svc_params)
         self.svm.fit(self.qkernel, y)
-        printer.print("\tFastQSVM training complete.")
+        printer.print("	FastQSVM training complete.")
 
 
     def predict(self, X):
@@ -350,14 +344,14 @@ class FastQSVM(Model):
         if len(X) == 0:
             raise ValueError("X must contain at least one sample.")        
 
-        printer.print("\tTesting FastQSVM...")
+        printer.print("	Testing FastQSVM...")
         kernel_test = self._quantum_kernel(X, self.X_train, False)
 
         if kernel_test.shape[1] == 0:
             raise ValueError(f"Invalid kernel matrix shape: {kernel_test.shape}")
         preds = self.svm.predict(kernel_test)
 
-        printer.print("\tFastQSVM testing complete.")
+        printer.print("	FastQSVM testing complete.")
         return preds
 
     @property
@@ -369,7 +363,9 @@ class FastQSVM(Model):
 # MPSQSVM
 # =============================================================================
 class MPSQSVM(Model):
-    def __init__(self, nqubits, embedding, *, cores: int = 1, state_dtype=config.state_dtype, kernel_dtype=config.kernel_dtype):
+    def __init__(self, nqubits, embedding, *, cores: int = 1, state_dtype=config.state_dtype, kernel_dtype=config.kernel_dtype,
+                 C=1.0, class_weight=None, tol=1e-3, cache_size=200, max_iter=-1, shrinking=True, probability=False,
+                 random_state=None, decision_function_shape="ovr", break_ties=False, verbose=False):
         super().__init__()
         
         self.circuit_factory   = CircuitFactory(nqubits, nlayers=0)
@@ -387,6 +383,19 @@ class MPSQSVM(Model):
         self.state_dtype       = state_dtype
         self.kernel_dtype      = kernel_dtype
         self.numpy_api         = _numpy_math_api()
+        self.svc_params        = {
+            "C": C,
+            "class_weight": class_weight,
+            "tol": tol,
+            "cache_size": cache_size,
+            "max_iter": max_iter,
+            "shrinking": shrinking,
+            "probability": probability,
+            "random_state": random_state,
+            "decision_function_shape": decision_function_shape,
+            "break_ties": break_ties,
+            "verbose": verbose,
+        }
 
     # -------------------------------------------------------------------------
     # Context manager for BLAS threads
@@ -414,7 +423,6 @@ class MPSQSVM(Model):
             self.embedding_circuit(psi, x)
 
             psi_final = psi.psi
-            #psi.psi.canonicalize(where=0)
             psi_final.normalize()
 
             return psi_final 
@@ -425,24 +433,10 @@ class MPSQSVM(Model):
             return [self.kernel_circ(x) for x in X]
 
     def _is_analytic_embedding(self):
-        return self.embedding in {Embedding.RX, Embedding.RY, Embedding.RZ}
-
-    def _prepare_angle_features(self, X):
-        X = np.asarray(X, dtype=np.float64)
-        if X.ndim == 1:
-            X = X.reshape(1, -1)
-        if X.shape[1] > self.nqubits:
-            raise ValueError(f"Features must be of length <= {self.nqubits}; got length {X.shape[1]}.")
-        if X.shape[1] < self.nqubits:
-            X = np.pad(X, ((0, 0), (0, self.nqubits - X.shape[1])), mode="constant")
-        return X
+        return _supports_analytic_kernel(self.embedding)
 
     def _analytic_kernel(self, X1, X2):
-        A = self._prepare_angle_features(X1)
-        B = self._prepare_angle_features(X2)
-        delta = A[:, None, :] - B[None, :, :]
-        K = np.prod(np.cos(0.5 * delta) ** 2, axis=2, dtype=np.float64)
-        return K.astype(self.kernel_dtype, copy=False)
+        return _analytic_kernel(self.embedding, X1, X2, self.nqubits, self.kernel_dtype)
 
 
     def _mps_overlap(self, X1, X2):
@@ -499,12 +493,7 @@ class MPSQSVM(Model):
     # =============================================================================
     def _quantum_kernel(self, X1, X2, is_symmetric: bool = False, *, states_1=None, states_2=None):
         if self._is_analytic_embedding():
-            K = self._analytic_kernel(X1, X2)
-            if is_symmetric:
-                K = 0.5 * (K + K.T)
-                np.fill_diagonal(K, 1.0)
-            np.clip(K, 0.0, 1.0, out=K)
-            return K
+            return _finalize_kernel_matrix(self._analytic_kernel(X1, X2), is_symmetric=is_symmetric)
 
         if states_2 is None:
             states_2 = self._build_states(X2)
@@ -512,44 +501,45 @@ class MPSQSVM(Model):
             states_1 = states_2 if is_symmetric else self._build_states(X1)
 
         K = self._mps_overlap(states_1, states_2)
-
-        if is_symmetric:
-            K = 0.5 * (K + K.T)
-
         K = K.astype(self.kernel_dtype, copy=False)
-        np.clip(K, 0.0, 1.0, out=K)
-
-        if is_symmetric:
-            np.fill_diagonal(K, 1.0)
-        return K
+        return _finalize_kernel_matrix(K, is_symmetric=is_symmetric)
 
 
     # -------------------------------------------------------------------------
     def fit(self, X, y):
         self.X_train = X
-        printer.print("\tTraining MPSQSVM...")
-        self.train_states = self._build_states(X)
-        self.qkernel = self._quantum_kernel(X, X, True, states_1=self.train_states, states_2=self.train_states)
-        self.svm = SVC(kernel="precomputed")
+        printer.print("	Training MPSQSVM...")
+        if self._is_analytic_embedding():
+            self.train_states = None
+            self.qkernel = self._quantum_kernel(X, X, True)
+        else:
+            self.train_states = self._build_states(X)
+            self.qkernel = self._quantum_kernel(X, X, True, states_1=self.train_states, states_2=self.train_states)
+        self.svm = _build_precomputed_svc(**self.svc_params)
         self.svm.fit(self.qkernel, y)
-        printer.print("\tMPSQSVM training complete.")
+        printer.print("	MPSQSVM training complete.")
 
     # -------------------------------------------------------------------------
     def predict(self, X):
-        if self.X_train is None or self.train_states is None or self.svm is None:
+        if self.X_train is None or self.svm is None:
+            raise ValueError("Model has not been fitted. Call fit() before predict().")
+        if (not self._is_analytic_embedding()) and self.train_states is None:
             raise ValueError("Model has not been fitted. Call fit() before predict().")
 
         if len(X) == 0:
             raise ValueError("X must contain at least one sample.")
 
-        printer.print("\tTesting MPSQSVM...")
-        kernel_test = self._quantum_kernel(X, self.X_train, False, states_2=self.train_states)
+        printer.print("	Testing MPSQSVM...")
+        if self._is_analytic_embedding():
+            kernel_test = self._quantum_kernel(X, self.X_train, False)
+        else:
+            kernel_test = self._quantum_kernel(X, self.X_train, False, states_2=self.train_states)
         if kernel_test.shape[1] == 0:
             raise ValueError(f"Invalid kernel matrix shape: {kernel_test.shape}")
 
         preds = self.svm.predict(kernel_test)
 
-        printer.print("\tMPSQSVM testing complete.")
+        printer.print("	MPSQSVM testing complete.")
         return preds
 
     @property

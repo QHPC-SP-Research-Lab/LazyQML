@@ -149,6 +149,11 @@ zz_checkbox = ipywidgets.Checkbox(
     description='ZZ',
 )
 
+zz_local_checkbox = ipywidgets.Checkbox(
+    **cb_default_parameters,
+    description='ZZ local',
+)
+
 amp_checkbox = ipywidgets.Checkbox(
     **cb_default_parameters,
     description='Amplitude',
@@ -237,6 +242,7 @@ all_widgets = [
     ry_checkbox,
     rz_checkbox,
     zz_checkbox,
+    zz_local_checkbox,
     amp_checkbox,
     dense_checkbox,
     ho_checkbox,

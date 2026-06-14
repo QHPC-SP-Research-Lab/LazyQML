@@ -28,7 +28,7 @@ classifiers_box = ipywidgets.VBox(
     [
         ipywidgets.Label("Classifiers"),
         qsvm_checkbox,
-        fast_qsvm_checkbox
+        fast_qsvm_checkbox,
         qnn_checkbox,
         qnn_bag_checkbox
     ], 
@@ -54,6 +54,7 @@ embeddings_box = ipywidgets.VBox(
         ry_checkbox,
         rz_checkbox,
         zz_checkbox,
+        zz_local_checkbox,
         amp_checkbox,
         dense_checkbox,
         ho_checkbox
@@ -79,4 +80,19 @@ other_options_box = ipywidgets.VBox(
         verbose_widget
     ],
     layout=ipywidgets.Layout(width='100%', margin='10pt')
+)
+
+# Main container
+main_box = ipywidgets.VBox(
+    [
+        ipywidgets.HBox([general_model_options_box, cv_options_box]),
+        ipywidgets.HBox([classifiers_box, ansatzs_box]),
+        ipywidgets.HBox([embeddings_box, other_options_box]),
+        bagging_box,
+        generate_code_button,
+        save2file_button,
+        out_code,
+        output_code_display,
+    ],
+    layout=ipywidgets.Layout(width='100%')
 )

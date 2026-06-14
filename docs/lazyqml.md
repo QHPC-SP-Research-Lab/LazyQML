@@ -34,13 +34,13 @@
   - Description: Set of quantum ansatz configurations.
   - Constraints: Must contain at least one ansatz.
   - Default: `{Ansatzs.ALL}`
-  - Options: `{Embedding.HCZRX, Embedding.TREE_TENSOR, Embedding.TWO_LOCAL, Embedding.HARDWARE_EFFICENT, Embedding.ANNULAR}`
+  - Options: `{Ansatzs.HCZRX, Ansatzs.TREE_TENSOR, Ansatzs.TWO_LOCAL, Ansatzs.HARDWARE_EFFICIENT, Ansatzs.ANNULAR}`
 
 - **`embeddings`**: `Set[Embedding]`
   - Description: Set of embedding strategies.
   - Constraints: Must contain at least one embedding.
   - Default: `{Embedding.ALL}`
-  - Options: `{Ansatzs.RX, Ansatzs.RY, Ansatzs.RZ, Ansatzs.ZZ, Ansatzs.AMP, Ansatzs.DENSE_ANGLE, Ansatzs.HIGHER_ORDER}`
+  - Options: `{Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.ZZ, Embedding.ZZ_LOCAL, Embedding.AMP, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER}`
 
 - **`features`**: `Set[float]`
   - Description: Set of feature values (must be between 0 and 1).
@@ -77,6 +77,51 @@
 #### Logging and Metrics:
 - **`verbose`**: `bool`
   - Description: Flag for detailed output during training.
+  - Default: `False`
+
+#### QSVM / FastQSVM / MPSQSVM hyperparameters:
+- **`svmC`**: `float`
+  - Description: Regularization strength for precomputed-kernel SVMs.
+  - Default: `1.0`
+
+- **`svmClassWeight`**: `object`
+  - Description: Class weights passed to the underlying `SVC`.
+  - Default: `None`
+
+- **`svmTol`**: `float`
+  - Description: Optimization tolerance for the `SVC` solver.
+  - Default: `1e-3`
+
+- **`svmCacheSize`**: `int`
+  - Description: Cache size in MB for the `SVC` solver.
+  - Default: `200`
+
+- **`svmMaxIter`**: `int`
+  - Description: Maximum number of iterations for the `SVC` solver.
+  - Default: `-1`
+
+- **`svmShrinking`**: `bool`
+  - Description: Enables or disables the shrinking heuristic.
+  - Default: `True`
+
+- **`svmProbability`**: `bool`
+  - Description: Enables probability calibration in `SVC`.
+  - Default: `False`
+
+- **`svmRandomState`**: `int`
+  - Description: Random seed used by the `SVC` solver. If omitted, the experiment seed is reused.
+  - Default: `None`
+
+- **`svmDecisionFunctionShape`**: `str`
+  - Description: Multiclass decision function shape for `SVC`.
+  - Default: `"ovr"`
+
+- **`svmBreakTies`**: `bool`
+  - Description: Enables tie-breaking for multiclass `SVC` predictions.
+  - Default: `False`
+
+- **`svmVerbose`**: `bool`
+  - Description: Enables verbose output from libsvm.
   - Default: `False`
 
 - **`customMetric`**: `Optional[Callable]`

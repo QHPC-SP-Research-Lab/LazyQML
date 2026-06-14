@@ -70,7 +70,7 @@ def main():
     # --------------------------------------------------
     verbose    = False
     sequential = False
-    embeddings = {Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.AMP, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER}
+    embeddings = {Embedding.RX, Embedding.RY, Embedding.RZ, Embedding.ZZ, Embedding.ZZ_LOCAL, Embedding.AMP, Embedding.DENSE_ANGLE, Embedding.HIGHER_ORDER}
     nFeatures  = 8
     nqubits    = {nFeatures}
     random_st  = 0
@@ -78,10 +78,13 @@ def main():
     # --------------------------------------------------
     # 1. Extract acoustic features
     # --------------------------------------------------
-    extrc = AcousticFeatures(sr=4000, duration=2.0, n_mfcc=20, n_mels=32)
+    extrc = AcousticFeatures(sr=4000, duration=2.0, n_mfcc=20, n_mels=64)
     X     = extrc.fit_transform(wav_files)
     pca   = PCAHelper(nqubits=nFeatures, ncomponents=nFeatures)
     X_red = pca.fit_transform(X, y)
+
+    n_splits  = 5
+    n_repeats = 10
 
     # --------------------------------------------------
     # 2. Statevector
@@ -91,24 +94,32 @@ def main():
     models = {Model.FastQSVM}
     model  = QuantumClassifier(nqubits=nqubits, embeddings=embeddings, classifiers=models, verbose=verbose, sequential=sequential, randomstate=random_st)
 
-    print(f"{sim_type} train/test con {models}")
-    scores = model.fit(X_red, y, test_size=0.3, showTable=True)
+    # print(f"{sim_type} con {nqubits} qubits en train/test con {models}")
+    # scores = model.fit(X_red, y, test_size=0.3, showTable=True)
 
-    print(f"\n{sim_type} con CV (10, 5) con {models}")
-    scores = model.repeated_cross_validation(X_red, y, n_splits=5, n_repeats=10, showTable=True)
+    print(f"\n{sim_type} con {nqubits} qubits en CV ({n_splits}, {n_repeats}) con {models}")
+    scores = model.repeated_cross_validation(X_red, y, n_splits=n_splits, n_repeats=n_repeats, showTable=True)
 
 
     sim_type   = "tensor"
-    embeddings = {Embedding.RX}
+    embeddings = {Embedding.RX, Embedding.ZZ, Embedding.ZZ_LOCAL}
     models     = {Model.MPSQSVM}
 
     set_simulation_type(sim_type)
     model  = QuantumClassifier(nqubits=nqubits, embeddings=embeddings, classifiers=models, verbose=verbose, sequential=sequential, randomstate=random_st)
-    print(f"\n\n{sim_type} train/test con {models}")
-    scores = model.fit(X_red, y, test_size=0.3, showTable=True)
+    # print(f"\n\n{sim_type} con {nqubits} qubits en train/test con {models}")
+    # scores = model.fit(X_red, y, test_size=0.3, showTable=True)
 
-    print(f"\n{sim_type} con CV (10, 5) con {models}")
-    scores = model.repeated_cross_validation(X_red, y, n_splits=5, n_repeats=10, showTable=True)
+    print(f"\n{sim_type} con {nqubits} qubits en CV ({n_splits}, {n_repeats}) con {models}")
+    scores = model.repeated_cross_validation(X_red, y, n_splits=n_splits, n_repeats=n_repeats, showTable=True)
+
+    nqubits = {X.shape[1]}
+    model   = QuantumClassifier(nqubits=nqubits, embeddings=embeddings, classifiers=models, verbose=verbose, sequential=sequential, randomstate=random_st)
+    # print(f"\n\n{sim_type} con {nqubits} qubits en train/test con {models}")
+    # scores  = model.fit(X, y, test_size=0.3, showTable=True)
+
+    print(f"\n{sim_type} con {nqubits} qubits en CV ({n_splits}, {n_repeats}) con {models}")
+    scores = model.repeated_cross_validation(X, y, n_splits=n_splits, n_repeats=n_repeats, showTable=True)
 
 if __name__ == "__main__":
     main()

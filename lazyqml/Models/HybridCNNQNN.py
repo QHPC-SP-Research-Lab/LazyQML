@@ -1,3 +1,7 @@
+import os
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
+
 import numpy as np 
 import pandas as pd
 import pennylane as qml
@@ -12,6 +16,47 @@ from lazyqml.Factories import CircuitFactory
 from lazyqml.Global.globalEnums import Backend, Embedding
 from lazyqml.Interfaces.iModel import Model
 from lazyqml.Utils.Utils import get_max_bond_dim, get_simulation_type
+
+def _configure_worker_threads(worker_threads=None, interop_threads=None):
+    if worker_threads is not None:
+        if worker_threads < 1:
+            raise ValueError("worker_threads must be at least 1.")
+        worker_threads = int(worker_threads)
+        os.environ["OMP_NUM_THREADS"] = str(worker_threads)
+        os.environ["MKL_NUM_THREADS"] = str(worker_threads)
+        torch.set_num_threads(worker_threads)
+
+    if interop_threads is not None:
+        if interop_threads < 1:
+            raise ValueError("interop_threads must be at least 1.")
+        interop_threads = int(interop_threads)
+        try:
+            torch.set_num_interop_threads(interop_threads)
+        except RuntimeError:
+            # PyTorch only allows changing interop threads before parallel work starts.
+            pass
+
+
+def _run_hybrid_cnn_qnn_cv_fold(model_kwargs, simulation_type, train_X, train_y, test_X, test_y, seed, worker_threads=None, interop_threads=None):
+    _configure_worker_threads(worker_threads=worker_threads, interop_threads=interop_threads)
+
+    from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score
+
+    from lazyqml.Utils import set_simulation_type
+
+    set_simulation_type(simulation_type)
+
+    model = HybridCNNQNN(**model_kwargs)
+    model.seed = seed
+    model.fit(train_X, train_y)
+    preds = model.predict(test_X)
+
+    return {
+        "accuracy": accuracy_score(test_y, preds),
+        "balanced_accuracy": balanced_accuracy_score(test_y, preds),
+        "f1_weighted": f1_score(test_y, preds, average="weighted"),
+    }
+
 
 class HybridCNNQNN(Model):
     def __init__(
@@ -227,7 +272,8 @@ class HybridCNNQNN(Model):
         features = self.pool(features)
         features = self.flatten(features)
         features = self.project(features)
-        outputs = self.qnode(features, self.params)
+        outputs  = self.qnode(features, self.params)
+
         return self._format_preds(outputs)
 
 
@@ -313,7 +359,7 @@ class HybridCNNQNN(Model):
             return (y_pred > 0.5).cpu().numpy()
         return torch.argmax(y_pred, dim=1).cpu().numpy()
 
-    def repeated_cross_validation(self, X, y, n_splits=5, n_repeats=1, showTable=True):
+    def repeated_cross_validation(self, X, y, n_splits=5, n_repeats=1, showTable=True, n_jobs=1, worker_threads=None, interop_threads=None):
         if len(X) == 0:
             raise ValueError("Input data is empty.")
         if len(X) != len(y):
@@ -322,12 +368,24 @@ class HybridCNNQNN(Model):
             raise ValueError("n_splits must be at least 2.")
         if n_repeats < 1:
             raise ValueError("n_repeats must be at least 1.")
+        if n_jobs < 1:
+            raise ValueError("n_jobs must be at least 1.")
 
         X = np.asarray(X)
         y = np.asarray(y)
 
-        records = []
+
+        records   = []
         base_seed = self.seed if self.seed is not None else 1234
+        simulation_type = get_simulation_type()
+        model_kwargs = self._init_kwargs()
+
+        if n_jobs > 1 and worker_threads is None:
+            worker_threads = 1
+        if n_jobs > 1 and interop_threads is None:
+            interop_threads = 1
+
+        tasks = []
 
         for repeat in range(n_repeats):
             splitter = StratifiedKFold(
@@ -337,19 +395,59 @@ class HybridCNNQNN(Model):
             )
 
             for fold, (train_idx, test_idx) in enumerate(splitter.split(X, y), start=1):
-                model = self._clone(seed=base_seed + repeat)
-                model.fit(X[train_idx], y[train_idx])
-                preds = model.predict(X[test_idx])
-
-                records.append({
+                tasks.append({
                     "repeat": repeat + 1,
                     "fold": fold,
-                    "accuracy": accuracy_score(y[test_idx], preds),
-                    "balanced_accuracy": balanced_accuracy_score(y[test_idx], preds),
-                    "f1_weighted": f1_score(y[test_idx], preds, average="weighted"),
+                    "seed": base_seed + repeat,
+                    "train_X": X[train_idx],
+                    "train_y": y[train_idx],
+                    "test_X": X[test_idx],
+                    "test_y": y[test_idx],
                 })
 
+        if n_jobs == 1:
+            _configure_worker_threads(worker_threads=worker_threads, interop_threads=interop_threads)
+
+            for task in tasks:
+                model = self._clone(seed=task["seed"])
+                model.fit(task["train_X"], task["train_y"])
+                preds = model.predict(task["test_X"])
+
+                records.append({
+                    "repeat": task["repeat"],
+                    "fold": task["fold"],
+                    "accuracy": accuracy_score(task["test_y"], preds),
+                    "balanced_accuracy": balanced_accuracy_score(task["test_y"], preds),
+                    "f1_weighted": f1_score(task["test_y"], preds, average="weighted"),
+                })
+        else:
+            with ProcessPoolExecutor(max_workers=n_jobs, mp_context=mp.get_context("spawn")) as executor:
+                futures = [
+                    executor.submit(
+                        _run_hybrid_cnn_qnn_cv_fold,
+                        model_kwargs,
+                        simulation_type,
+                        task["train_X"],
+                        task["train_y"],
+                        task["test_X"],
+                        task["test_y"],
+                        task["seed"],
+                        worker_threads,
+                        interop_threads,
+                    )
+                    for task in tasks
+                ]
+
+                for task, future in zip(tasks, futures):
+                    metrics = future.result()
+                    records.append({
+                        "repeat": task["repeat"],
+                        "fold": task["fold"],
+                        **metrics,
+                    })
+
         splits_df = pd.DataFrame.from_records(records)
+        splits_df = splits_df.sort_values(["repeat", "fold"]).reset_index(drop=True)
         summary_df = pd.DataFrame([{
             "accuracy_mean": splits_df["accuracy"].mean(),
             "accuracy_std": splits_df["accuracy"].std(ddof=0),

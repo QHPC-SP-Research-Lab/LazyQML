@@ -69,7 +69,7 @@ data = load_iris()
 X = data.data
 y = data.target
 
-classifier = QuantumClassifier(nqubits={4}, classifiers={Model.QNN, Model.QSVM}, epochs=10)
+classifier = QuantumClassifier(nqubits={4}, classifiers={Model.QNN, Model.QSVM}, embeddings={Embedding.ZZ, Embedding.ZZ_LOCAL}, epochs=10)
 
 # Fit and predict
 classifier.fit(X=X, y=y, test_size=0.4)

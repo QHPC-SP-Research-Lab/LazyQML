@@ -1,6 +1,6 @@
 from lazyqml.Global.globalEnums import Ansatzs, Embedding
 from lazyqml.Circuits.Ansatzs import HardwareEfficient, HCzRx, TreeTensor, TwoLocal, Annular
-from lazyqml.Circuits.Embeddings import DenseAngleEmbedding, ZZEmbedding, HigherOrderEmbedding, DenseAngleEmbeddingMPS, ZZEmbeddingMPS, HigherOrderEmbeddingMPS, AngleEmbeddingMPS
+from lazyqml.Circuits.Embeddings import DenseAngleEmbedding, ZZEmbedding, ZZLocalEmbedding, HigherOrderEmbedding, DenseAngleEmbeddingMPS, ZZEmbeddingMPS, ZZLocalEmbeddingMPS, HigherOrderEmbeddingMPS, AngleEmbeddingMPS
 
 from functools import partial
 import pennylane as qml
@@ -21,6 +21,7 @@ class CircuitFactory:
             return TwoLocal(self.nqubits, nlayers=self.nlayers)
         elif ansatz == Ansatzs.ANNULAR:
             return Annular(self.nqubits, nlayers=self.nlayers)
+        raise ValueError(f"Ansatz {ansatz} is not supported.")
 
     def GetEmbeddingCircuit(self, embedding):
         if embedding == Embedding.RX:
@@ -37,6 +38,9 @@ class CircuitFactory:
         
         elif embedding == Embedding.ZZ:
             return ZZEmbedding
+
+        elif embedding == Embedding.ZZ_LOCAL:
+            return ZZLocalEmbedding
         
         elif embedding == Embedding.AMP:
             return partial(qml.AmplitudeEmbedding, pad_with=0, normalize=True)
@@ -46,6 +50,8 @@ class CircuitFactory:
         
         elif embedding == Embedding.HIGHER_ORDER:
             return HigherOrderEmbedding
+
+        raise ValueError(f"Embedding {embedding} is not supported.")
         
     def GetEmbeddingCircuitMPS(self, embedding):
         if embedding == Embedding.RX:
@@ -59,6 +65,9 @@ class CircuitFactory:
 
         elif embedding == Embedding.ZZ:
             return ZZEmbeddingMPS(self.nqubits)
+
+        elif embedding == Embedding.ZZ_LOCAL:
+            return ZZLocalEmbeddingMPS(self.nqubits)
         
         elif embedding == Embedding.DENSE_ANGLE:
             return DenseAngleEmbeddingMPS(self.nqubits)

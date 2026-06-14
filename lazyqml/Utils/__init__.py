@@ -13,6 +13,10 @@ from .Utils import (
     _numpy_math_api
 )
 
+# Backward-compatible aliases for older exported names.
+calculate_min_memory_FastQSVM = calculate_min_memory_Fast
+calculate_quantum_memory_FastQSVM = calculate_quantum_memory_Fast
+
 __all__ = [
     'printer', 
     'get_max_bond_dim',
@@ -23,6 +27,8 @@ __all__ = [
     'calculate_quantum_memory',
     'calculate_free_memory',
     'calculate_free_video_memory',
+    'calculate_min_memory_Fast',
+    'calculate_quantum_memory_Fast',
     'calculate_min_memory_FastQSVM',
     'calculate_quantum_memory_FastQSVM',
     'create_combinations',

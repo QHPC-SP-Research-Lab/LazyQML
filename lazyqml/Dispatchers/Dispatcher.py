@@ -39,7 +39,18 @@ class Dispatcher:
                 sequential=False,
                 threshold=16,
                 time=True,
-                cores=-1
+                cores=-1,
+                svmC=1.0,
+                svmClassWeight=None,
+                svmTol=1e-3,
+                svmCacheSize=200,
+                svmMaxIter=-1,
+                svmShrinking=True,
+                svmProbability=False,
+                svmRandomState=None,
+                svmDecisionFunctionShape="ovr",
+                svmBreakTies=False,
+                svmVerbose=False,
                 ):
 
         self.sequential = sequential
@@ -65,6 +76,17 @@ class Dispatcher:
         self.customImputerNum = customImputerNum
         self.customImputerCat = customImputerCat
         self.predictions = predictions
+        self.svmC = svmC
+        self.svmClassWeight = svmClassWeight
+        self.svmTol = svmTol
+        self.svmCacheSize = svmCacheSize
+        self.svmMaxIter = svmMaxIter
+        self.svmShrinking = svmShrinking
+        self.svmProbability = svmProbability
+        self.svmRandomState = svmRandomState
+        self.svmDecisionFunctionShape = svmDecisionFunctionShape
+        self.svmBreakTies = svmBreakTies
+        self.svmVerbose = svmVerbose
 
     def execute_model(self, id, model_params, X_train, y_train, X_test, y_test, customMetric):
         model = ModelFactory().getModel(**model_params)
@@ -313,14 +335,25 @@ class Dispatcher:
                 "ansatz": ansatz,
                 "n_class": n_classes,
                 "shots": self.shots,
-                "seed": self.randomstate*repeat,
+                "seed": self.randomstate + repeat,
                 "layers": self.numLayers,
                 "n_samples": self.numSamples,
                 "n_features": n_features,
                 "lr": self.learningRate,
                 "batch_size": self.batch,
                 "epochs": self.epochs,
-                "numPredictors": self.numPredictors
+                "numPredictors": self.numPredictors,
+                "C": self.svmC,
+                "class_weight": self.svmClassWeight,
+                "tol": self.svmTol,
+                "cache_size": self.svmCacheSize,
+                "max_iter": self.svmMaxIter,
+                "shrinking": self.svmShrinking,
+                "probability": self.svmProbability,
+                "random_state": self.svmRandomState if self.svmRandomState is not None else self.randomstate + repeat,
+                "decision_function_shape": self.svmDecisionFunctionShape,
+                "break_ties": self.svmBreakTies,
+                "verbose": self.svmVerbose
             }
 
             if name in {Model.FastQSVM, Model.FastQKNN}:
