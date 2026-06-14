@@ -418,7 +418,7 @@ class MPSQSVM(Model):
     # -------------------------------------------------------------------------
     def _build_kernel(self):
         def mps(x):
-            psi = qtn.CircuitMPS(N=self.nqubits, dtype=self.state_dtype, max_bond=self.max_bond_dim)
+            psi = qtn.CircuitMPS(N=self.nqubits, max_bond=self.max_bond_dim)
 
             self.embedding_circuit(psi, x)
 
