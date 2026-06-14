@@ -3,7 +3,7 @@ tabulate
 torch
 torchaudio
 torchvision
-scipy
+scipy<1.14
 scikit-learn
 PennyLane==0.42.3
 PennyLane_Lightning==0.42
