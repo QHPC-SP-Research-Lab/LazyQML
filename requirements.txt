@@ -17,6 +17,7 @@ pandas
 joblib
 gputil
 quimb
+autoray>=0.7.0
 optuna
 ipykernel
 nvidia-ml-py
