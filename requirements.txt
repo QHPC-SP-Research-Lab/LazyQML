@@ -16,7 +16,7 @@ psutil
 pandas
 joblib
 gputil
-quimb==1.8.1
+quimb==1.8.2
 cotengra==0.6.2
 autoray==0.7.2
 optuna
