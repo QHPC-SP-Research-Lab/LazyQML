@@ -38,7 +38,12 @@ class DenseAngleEmbeddingMPS():
         # ---- Dense Angle Embedding ----
         for i in range(self.nqubits):
             circuit.apply_gate("RY", ry_angles[i], i)
-            circuit.apply_gate("PHASE", phase_angles[i], i)
+            
+            # problemas las versiones usadas de quimb. Se cambia por lo no comentado
+            #circuit.apply_gate("PHASE", phase_angles[i], i)
+            phase_gate = np.array([[1.0, 0.0], [0.0, np.exp(1j * phase_angles[i])]], dtype=np.complex128)
+            circuit.apply_gate(phase_gate, i)
+
 
 
         
